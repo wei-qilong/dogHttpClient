@@ -1,44 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { 
-  SendOutlined, 
-  SaveOutlined, 
-  DownOutlined,
   EyeInvisibleOutlined,
   DeleteOutlined
 } from '@ant-design/icons';
 import { 
   Button, 
   Input, 
-  Select, 
+  Select,
   Tabs, 
   Table, 
   Switch, 
   Space, 
-  Dropdown,
   Radio,
   Tag,
-  Tooltip,
-  message
+  Tooltip
 } from 'antd';
 import type { TabsProps } from 'antd';
 import { useAppStore } from '../store';
-import type { HttpMethod, KeyValuePair } from '../types';
-
-const SCRATCH_PAD_ID = '__scratch_pad__';
+import type { KeyValuePair } from '../types';
 
 const { TextArea } = Input;
-
-const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
-
-const methodColors: Record<HttpMethod, string> = {
-  GET: '#10B981',
-  POST: '#F59E0B',
-  PUT: '#3B82F6',
-  DELETE: '#EF4444',
-  PATCH: '#8B5CF6',
-  HEAD: '#6B7280',
-  OPTIONS: '#6B7280',
-};
 
 // Simple UUID generator
 const generateId = () => {
@@ -63,208 +44,19 @@ const ensureEmptyRow = (items: KeyValuePair[]): KeyValuePair[] => {
 
 export function RequestPanel() {
   const { 
-    currentRequest, 
-    currentCollectionId,
-    collections,
-    setCurrentRequest, 
-    sendRequest, 
-    isLoading
+    currentRequest
   } = useAppStore();
   
   const [activeTab, setActiveTab] = useState('params');
-
-  // 获取当前 Collection 名称
-  const currentCollection = collections.find(c => c.id === currentCollectionId);
-
-  const handleSend = async () => {
-    await sendRequest();
-  };
-
-  // 保存请求
-  const handleSave = useCallback(() => {
-    const state = useAppStore.getState();
-    let targetColId = currentCollectionId;
-
-    // 如果没有归属的 Collection，创建默认的 "Scratch Pad"
-    if (!targetColId) {
-      const scratchPad = state.collections.find(c => c.id === SCRATCH_PAD_ID);
-      if (scratchPad) {
-        targetColId = scratchPad.id;
-      } else {
-        // 创建 Scratch Pad Collection
-        const newColId = SCRATCH_PAD_ID;
-        const newCol = {
-          id: newColId,
-          name: 'Scratch Pad',
-          requests: [],
-          folders: [],
-        };
-        useAppStore.setState(s => ({
-          collections: [...s.collections, newCol]
-        }));
-        targetColId = newColId;
-      }
-    }
-
-    // 更新或添加 request
-    const updatedRequest = { ...state.currentRequest };
-    
-    useAppStore.setState(s => ({
-      collections: s.collections.map(c => {
-        if (c.id === targetColId) {
-          const existingIndex = c.requests.findIndex(r => r.id === updatedRequest.id);
-          if (existingIndex >= 0) {
-            // 更新现有 request
-            const newRequests = [...c.requests];
-            newRequests[existingIndex] = updatedRequest;
-            return { ...c, requests: newRequests };
-          } else {
-            // 添加新 request
-            return { ...c, requests: [...c.requests, updatedRequest] };
-          }
-        }
-        return c;
-      }),
-      currentCollectionId: targetColId,
-    }));
-
-    message.success('Request saved');
-  }, [currentCollectionId]);
-
-  // Ctrl+S 快捷键保存
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSave]);
 
   // 计算启用的 headers 数量（用于 tab 标签显示）
   const enabledHeadersCount = currentRequest.headers.filter(h => h.enabled && h.key).length;
   // 计算启用的 params 数量
   const enabledParamsCount = currentRequest.params.filter(p => p.enabled && p.key).length;
 
-  const methodItems = methods.map(method => ({
-    key: method,
-    label: (
-      <Space>
-        <span style={{ 
-          color: methodColors[method], 
-          fontWeight: 600, 
-          minWidth: 60,
-          fontSize: 12
-        }}>
-          {method}
-        </span>
-      </Space>
-    ),
-  }));
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {/* URL 栏 - 固定不随滚动 */}
-      <div style={{ 
-        padding: '12px 16px',
-        borderBottom: '1px solid #E2E8F0',
-        background: '#FFFFFF',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
-      }}>
-        {/* 面包屑导航 */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          marginBottom: 12,
-          fontSize: 12,
-          color: '#64748B'
-        }}>
-          <span style={{ 
-            color: methodColors[currentRequest.method], 
-            fontWeight: 600 
-          }}>
-            {currentRequest.method}
-          </span>
-          {currentCollection && (
-            <>
-              <span style={{ margin: '0 8px' }}>/</span>
-              <span style={{ color: '#F59E0B', fontWeight: 500 }}>{currentCollection.name}</span>
-            </>
-          )}
-          <span style={{ margin: '0 8px' }}>/</span>
-          <span style={{ color: '#1E293B' }}>{currentRequest.name || 'Untitled Request'}</span>
-        </div>
-
-        {/* URL 输入区 */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Method 选择器 */}
-          <Dropdown
-            menu={{ 
-              items: methodItems, 
-              onClick: ({ key }) => setCurrentRequest({ method: key as HttpMethod }),
-              style: { minWidth: 120 }
-            }}
-          >
-            <Button 
-              style={{ 
-                minWidth: 90,
-                color: methodColors[currentRequest.method],
-                fontWeight: 600,
-                fontSize: 13,
-                borderColor: '#E2E8F0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              {currentRequest.method}
-              <DownOutlined style={{ fontSize: 10 }} />
-            </Button>
-          </Dropdown>
-
-          {/* URL 输入框 */}
-          <Input
-            value={currentRequest.url}
-            onChange={(e) => setCurrentRequest({ url: e.target.value })}
-            placeholder="Enter request URL"
-            style={{ 
-              flex: 1,
-              fontSize: 13,
-              borderColor: '#E2E8F0'
-            }}
-          />
-
-          {/* Send 按钮 */}
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSend}
-            loading={isLoading}
-            style={{ 
-              background: '#3B82F6',
-              borderColor: '#3B82F6',
-              minWidth: 80
-            }}
-          >
-            Send
-          </Button>
-
-          {/* Save 按钮 */}
-          <Tooltip title="Save (Ctrl+S)">
-            <Button
-              icon={<SaveOutlined />}
-              style={{ borderColor: '#E2E8F0' }}
-              onClick={handleSave}
-            />
-          </Tooltip>
-        </div>
-      </div>
-
-      {/* 标签栏 - 固定 */}
+      {/* 标签栏 */}
       <Tabs 
         activeKey={activeTab} 
         onChange={setActiveTab}
