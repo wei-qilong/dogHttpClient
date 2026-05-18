@@ -137,7 +137,9 @@ function App() {
         <Content style={{ 
           display: 'flex', 
           flexDirection: 'column', 
-          background: '#F8FAFC'
+          background: '#F8FAFC',
+          overflowY: 'auto',
+          overflowX: 'hidden'
         }}>
           {/* 请求区域 */}
           <div style={{ 

@@ -103,17 +103,9 @@ body {
 /* Ant Design 覆盖样式 */
 .ant-layout {
   background: var(--bg-secondary) !important;
-  overflow: hidden !important;
 }
 
-/* 防止 Layout 内部产生多余滚动条 - 所有层级都禁止滚动 */
-.ant-layout,
-.ant-layout-content,
-.ant-layout-has-sider {
-  overflow: hidden !important;
-}
-
-/* 只允许主内容区滚动 */
+/* 只允许主内容区滚动，其他区域禁止滚动 */
 #root > .ant-layout > .ant-layout {
   overflow: hidden !important;
 }
