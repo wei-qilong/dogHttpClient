@@ -278,17 +278,16 @@ function App() {
             style={{ color: '#64748B', fontSize: 16 }}
           />
           <Space size={8}>
-            <div style={{
-              width: 28,
-              height: 28,
-              background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <span style={{ fontSize: 14 }}>🐕</span>
-            </div>
+            <img 
+              src="/icon.png" 
+              alt="dogHttpClient" 
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                objectFit: 'cover'
+              }}
+            />
             <span style={{ color: '#1E293B', fontWeight: 600, fontSize: 15 }}>dogHttpClient</span>
           </Space>
 

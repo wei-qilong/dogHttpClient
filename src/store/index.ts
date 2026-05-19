@@ -96,10 +96,29 @@ export const useAppStore = create<AppState>((set) => ({
   responseTab: 'body',
   bodyTab: 'pretty',
   
-  setCurrentRequest: (request, collectionId) => set((state) => ({
-    currentRequest: { ...state.currentRequest, ...request },
-    ...(collectionId !== undefined && { currentCollectionId: collectionId }),
-  })),
+  setCurrentRequest: (request, collectionId) => set((state) => {
+    // 完全替换 currentRequest，避免数组合并问题
+    const newRequest: RequestConfig = {
+      id: request.id ?? state.currentRequest.id,
+      name: request.name ?? state.currentRequest.name,
+      method: request.method ?? state.currentRequest.method,
+      url: request.url ?? state.currentRequest.url,
+      params: request.params ?? state.currentRequest.params,
+      headers: request.headers ?? state.currentRequest.headers,
+      bodyType: request.bodyType ?? state.currentRequest.bodyType,
+      bodyContent: request.bodyContent ?? state.currentRequest.bodyContent,
+      bodyRawType: request.bodyRawType ?? state.currentRequest.bodyRawType,
+      formData: request.formData ?? state.currentRequest.formData,
+      urlEncoded: request.urlEncoded ?? state.currentRequest.urlEncoded,
+      binaryFile: request.binaryFile ?? state.currentRequest.binaryFile,
+      preRequestScript: request.preRequestScript ?? state.currentRequest.preRequestScript,
+      testsScript: request.testsScript ?? state.currentRequest.testsScript,
+    };
+    return {
+      currentRequest: newRequest,
+      ...(collectionId !== undefined && { currentCollectionId: collectionId }),
+    };
+  }),
   
   setCurrentResponse: (response) => set({ currentResponse: response }),
   setIsLoading: (loading) => set({ isLoading: loading }),
