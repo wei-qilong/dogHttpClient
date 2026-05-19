@@ -994,7 +994,7 @@ function CodeTab() {
             if (item.type === 'file' && item.fileName) {
               parts.push(`  -F '${item.key}=@${item.fileName}'`);
             } else {
-              parts.push(`  -F '${item.key}=${item.value}'`);
+              parts.push(`  -F '${item.key}="${item.value.replace(/"/g, '\\"')}"'`);
             }
           }
         }
