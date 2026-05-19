@@ -134,9 +134,52 @@ function App() {
     await sendRequest();
   };
 
+  // 保存请求
   const handleSave = () => {
-    // TODO: 实现保存功能
-    console.log('Save request:', currentRequest);
+    const state = useAppStore.getState();
+    let targetColId = currentCollectionId;
+
+    // 如果没有归属的 Collection，创建默认的 "Scratch Pad"
+    if (!targetColId) {
+      const scratchPad = state.collections.find(c => c.id === '__scratch_pad__');
+      if (scratchPad) {
+        targetColId = scratchPad.id;
+      } else {
+        // 创建 Scratch Pad Collection
+        const newCol = {
+          id: '__scratch_pad__',
+          name: 'Scratch Pad',
+          requests: [],
+          folders: [],
+        };
+        useAppStore.setState(s => ({
+          collections: [...s.collections, newCol]
+        }));
+        targetColId = '__scratch_pad__';
+      }
+    }
+
+    // 更新或添加 request
+    const updatedRequest = { ...state.currentRequest };
+    
+    useAppStore.setState(s => ({
+      collections: s.collections.map(c => {
+        if (c.id === targetColId) {
+          const existingIndex = c.requests.findIndex(r => r.id === updatedRequest.id);
+          if (existingIndex >= 0) {
+            // 更新现有 request
+            const newRequests = [...c.requests];
+            newRequests[existingIndex] = updatedRequest;
+            return { ...c, requests: newRequests };
+          } else {
+            // 添加新 request
+            return { ...c, requests: [...c.requests, updatedRequest] };
+          }
+        }
+        return c;
+      }),
+      currentCollectionId: targetColId,
+    }));
   };
 
   return (
