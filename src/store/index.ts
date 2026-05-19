@@ -139,17 +139,50 @@ export const useAppStore = create<AppState>((set) => ({
         console.log('[sendRequest] Final URL:', url);
       }
 
+      // 构建请求体
+      let requestBody: string | null = null;
+      let requestHeaders: Record<string, string> = currentRequest.headers
+        .filter(h => h.enabled && h.key)
+        .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {} as Record<string, string>);
+
+      if (currentRequest.bodyType === 'raw' && currentRequest.bodyContent) {
+        requestBody = currentRequest.bodyContent;
+      } else if (currentRequest.bodyType === 'x-www-form-urlencoded' && currentRequest.urlEncoded) {
+        const enabledData = currentRequest.urlEncoded.filter(p => p.enabled && p.key);
+        if (enabledData.length > 0) {
+          requestBody = enabledData.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+          requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
+      } else if (currentRequest.bodyType === 'form-data' && currentRequest.formData) {
+        // form-data 需要特殊处理，这里先用简单的 key=value 格式
+        const enabledData = currentRequest.formData.filter(p => p.enabled && p.key);
+        if (enabledData.length > 0) {
+          const formParts: string[] = [];
+          for (const item of enabledData) {
+            if (item.type === 'file' && item.fileName) {
+              formParts.push(`${encodeURIComponent(item.key)}=${encodeURIComponent(item.fileName)}`);
+            } else {
+              formParts.push(`${encodeURIComponent(item.key)}=${encodeURIComponent(item.value)}`);
+            }
+          }
+          requestBody = formParts.join('&');
+          requestHeaders['Content-Type'] = 'multipart/form-data';
+        }
+      } else if (currentRequest.bodyType === 'binary' && currentRequest.binaryFile) {
+        requestBody = currentRequest.binaryFile.data;
+        requestHeaders['Content-Type'] = currentRequest.binaryFile.type;
+      }
+
+      console.log('[sendRequest] Body type:', currentRequest.bodyType);
+      console.log('[sendRequest] Request body:', requestBody);
+
       // 调用 Tauri 后端代理请求，绕过 CORS
       const result: any = await invoke('send_http_request', {
         request: {
           method: currentRequest.method,
           url: url,
-          headers: currentRequest.headers
-            .filter(h => h.enabled && h.key)
-            .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {} as Record<string, string>),
-          body: currentRequest.bodyType !== 'none' && currentRequest.bodyContent
-            ? currentRequest.bodyContent
-            : null,
+          headers: requestHeaders,
+          body: requestBody,
         }
       });
 
