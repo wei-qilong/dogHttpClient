@@ -860,8 +860,19 @@ function CodeTab() {
 
   // 生成 curl 命令
   const generateCurl = () => {
-    const { method, url, headers, bodyContent, bodyType } = currentRequest;
+    const { method, url, headers, bodyContent, bodyType, params } = currentRequest;
     if (!url) return 'curl';
+
+    // 构建带 params 的 URL
+    let finalUrl = url;
+    const enabledParams = params.filter(p => p.enabled && p.key);
+    if (enabledParams.length > 0) {
+      const separator = url.includes('?') ? '&' : '?';
+      const queryString = enabledParams
+        .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+        .join('&');
+      finalUrl = url + separator + queryString;
+    }
 
     let parts = [`curl -X ${method}`];
 
@@ -876,7 +887,7 @@ function CodeTab() {
       parts.push(`  -d '${bodyContent}'`);
     }
 
-    parts.push(`  '${url}'`);
+    parts.push(`  '${finalUrl}'`);
     return parts.join(' \\\n');
   };
 
