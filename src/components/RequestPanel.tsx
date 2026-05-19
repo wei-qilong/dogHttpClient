@@ -936,7 +936,7 @@ function CodeTab() {
 
   // 生成 curl 命令
   const generateCurl = () => {
-    const { method, url, headers, bodyContent, bodyType, params, formData, urlEncoded, binaryFile } = currentRequest;
+    const { method, url, headers, bodyContent, bodyType, bodyRawType, params, formData, urlEncoded, binaryFile } = currentRequest;
     if (!url) return 'curl';
 
     // 构建带 params 的 URL
@@ -952,6 +952,9 @@ function CodeTab() {
 
     let parts = [`curl -X ${method}`];
 
+    // 检查用户是否已设置 Content-Type header
+    const hasContentTypeHeader = headers.some(h => h.enabled && h.key.toLowerCase() === 'content-type');
+
     // 添加 headers
     const enabledHeaders = headers.filter(h => h.enabled && h.key);
     for (const h of enabledHeaders) {
@@ -961,13 +964,27 @@ function CodeTab() {
     // 添加 body
     if (['POST', 'PUT', 'PATCH'].includes(method) && bodyType !== 'none') {
       if (bodyType === 'raw' && bodyContent) {
-        parts.push(`  -H 'Content-Type: application/json'`);
-        parts.push(`  -d '${bodyContent.replace(/'/g, "'\\''")}'`);
+        // 根据 bodyRawType 设置 Content-Type
+        const contentTypeMap: Record<string, string> = {
+          'json': 'application/json',
+          'xml': 'application/xml',
+          'text': 'text/plain',
+          'html': 'text/html'
+        };
+        const contentType = contentTypeMap[bodyRawType] || 'text/plain';
+        if (!hasContentTypeHeader) {
+          parts.push(`  -H 'Content-Type: ${contentType}'`);
+        }
+        // 转义单引号
+        const escapedBody = bodyContent.replace(/'/g, "'\\''").replace(/\n/g, '\\n');
+        parts.push(`  -d '${escapedBody}'`);
       } else if (bodyType === 'x-www-form-urlencoded' && urlEncoded) {
         const enabledData = urlEncoded.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
           const dataStr = enabledData.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
-          parts.push(`  -H 'Content-Type: application/x-www-form-urlencoded'`);
+          if (!hasContentTypeHeader) {
+            parts.push(`  -H 'Content-Type: application/x-www-form-urlencoded'`);
+          }
           parts.push(`  -d '${dataStr}'`);
         }
       } else if (bodyType === 'form-data' && formData) {
@@ -982,6 +999,9 @@ function CodeTab() {
           }
         }
       } else if (bodyType === 'binary' && binaryFile) {
+        if (!hasContentTypeHeader && binaryFile.type) {
+          parts.push(`  -H 'Content-Type: ${binaryFile.type}'`);
+        }
         parts.push(`  --data-binary '@${binaryFile.name}'`);
       }
     }
