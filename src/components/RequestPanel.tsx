@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { 
+import {
   EyeInvisibleOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  CopyOutlined
 } from '@ant-design/icons';
 import { 
   Button, 
@@ -121,6 +122,11 @@ export function RequestPanel() {
             key: 'settings',
             label: <span style={{ fontSize: 13 }}>Settings</span>,
             children: <SettingsTab />,
+          },
+          {
+            key: 'code',
+            label: <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 600 }}>&lt;/&gt;</span>,
+            children: <CodeTab />,
           },
         ] as TabsProps['items']}
       />
@@ -837,6 +843,78 @@ function SettingsTab() {
           <Switch defaultChecked size="small" />
         </div>
       </div>
+    </div>
+  );
+}
+
+// Code 标签页 - 生成 curl 命令
+function CodeTab() {
+  const { currentRequest } = useAppStore();
+  const [copied, setCopied] = useState(false);
+
+  // 生成 curl 命令
+  const generateCurl = () => {
+    const { method, url, headers, bodyContent, bodyType } = currentRequest;
+    if (!url) return 'curl';
+
+    let parts = [`curl -X ${method}`];
+
+    // 添加 headers
+    const enabledHeaders = headers.filter(h => h.enabled && h.key);
+    for (const h of enabledHeaders) {
+      parts.push(`  -H '${h.key}: ${h.value}'`);
+    }
+
+    // 添加 body
+    if (['POST', 'PUT', 'PATCH'].includes(method) && bodyType !== 'none' && bodyContent) {
+      parts.push(`  -d '${bodyContent}'`);
+    }
+
+    parts.push(`  '${url}'`);
+    return parts.join(' \\\n');
+  };
+
+  const curlCommand = generateCurl();
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(curlCommand);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ padding: '16px' }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12
+      }}>
+        <span style={{ fontSize: 13, color: '#64748B' }}>cURL</span>
+        <Button
+          size="small"
+          icon={<CopyOutlined />}
+          onClick={handleCopy}
+          style={{ fontSize: 12 }}
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </Button>
+      </div>
+      <pre style={{
+        background: '#1E293B',
+        color: '#E2E8F0',
+        padding: 16,
+        borderRadius: 8,
+        fontSize: 13,
+        fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace",
+        lineHeight: 1.6,
+        margin: 0,
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-all'
+      }}>
+        {curlCommand}
+      </pre>
     </div>
   );
 }
