@@ -57,22 +57,68 @@ export function ResponsePanel() {
     return contentType;
   };
 
-  // 根据 Content-Type 获取文件扩展名
-  const getFileExtension = () => {
+  // 根据 Content-Type 获取文件扩展名和 MIME 类型
+  const getFileInfo = () => {
     const contentType = getContentType().toLowerCase();
-    if (contentType.includes('json')) return 'json';
-    if (contentType.includes('xml')) return 'xml';
-    if (contentType.includes('html')) return 'html';
-    if (contentType.includes('css')) return 'css';
-    if (contentType.includes('javascript')) return 'js';
-    if (contentType.includes('image/png')) return 'png';
-    if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) return 'jpg';
-    if (contentType.includes('image/gif')) return 'gif';
-    if (contentType.includes('image/svg')) return 'svg';
-    if (contentType.includes('pdf')) return 'pdf';
-    if (contentType.includes('zip')) return 'zip';
-    if (contentType.includes('text')) return 'txt';
-    return 'txt';
+    // 去掉 charset 等参数，只保留主类型
+    const mimeType = contentType.split(';')[0].trim();
+
+    // 办公文档
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) {
+      if (mimeType.includes('csv')) return { ext: 'csv', mime: 'text/csv' };
+      if (mimeType.includes('sheet') || mimeType.includes('excel')) {
+        if (mimeType.includes('openxmlformats')) return { ext: 'xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+        return { ext: 'xls', mime: 'application/vnd.ms-excel' };
+      }
+      return { ext: 'csv', mime: 'text/csv' };
+    }
+
+    // Word 文档
+    if (mimeType.includes('word') || mimeType.includes('document')) {
+      if (mimeType.includes('openxmlformats')) return { ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+      return { ext: 'doc', mime: 'application/msword' };
+    }
+
+    // PPT 演示文稿
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint') || mimeType.includes('slide')) {
+      if (mimeType.includes('openxmlformats')) return { ext: 'pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
+      return { ext: 'ppt', mime: 'application/vnd.ms-powerpoint' };
+    }
+
+    // PDF
+    if (mimeType.includes('pdf')) return { ext: 'pdf', mime: 'application/pdf' };
+
+    // 图片
+    if (mimeType.includes('image/png')) return { ext: 'png', mime: 'image/png' };
+    if (mimeType.includes('image/jpeg') || mimeType.includes('image/jpg')) return { ext: 'jpg', mime: 'image/jpeg' };
+    if (mimeType.includes('image/gif')) return { ext: 'gif', mime: 'image/gif' };
+    if (mimeType.includes('image/svg')) return { ext: 'svg', mime: 'image/svg+xml' };
+    if (mimeType.includes('image/webp')) return { ext: 'webp', mime: 'image/webp' };
+    if (mimeType.includes('image/')) return { ext: 'bin', mime: mimeType };
+
+    // 压缩包
+    if (mimeType.includes('zip')) return { ext: 'zip', mime: 'application/zip' };
+    if (mimeType.includes('gzip')) return { ext: 'gz', mime: 'application/gzip' };
+    if (mimeType.includes('rar')) return { ext: 'rar', mime: 'application/vnd.rar' };
+    if (mimeType.includes('7z')) return { ext: '7z', mime: 'application/x-7z-compressed' };
+
+    // 数据格式
+    if (mimeType.includes('json')) return { ext: 'json', mime: 'application/json' };
+    if (mimeType.includes('xml')) return { ext: 'xml', mime: 'application/xml' };
+    if (mimeType.includes('yaml')) return { ext: 'yaml', mime: 'text/yaml' };
+    if (mimeType.includes('html')) return { ext: 'html', mime: 'text/html' };
+    if (mimeType.includes('css')) return { ext: 'css', mime: 'text/css' };
+    if (mimeType.includes('javascript')) return { ext: 'js', mime: 'application/javascript' };
+
+    // 音视频
+    if (mimeType.includes('audio/')) return { ext: 'mp3', mime: mimeType };
+    if (mimeType.includes('video/')) return { ext: 'mp4', mime: mimeType };
+
+    // 文本
+    if (mimeType.includes('text')) return { ext: 'txt', mime: 'text/plain' };
+
+    // 默认
+    return { ext: 'bin', mime: 'application/octet-stream' };
   };
 
   // 复制响应到剪切板
@@ -84,12 +130,12 @@ export function ResponsePanel() {
 
   // 保存响应到文件
   const handleSave = () => {
-    const blob = new Blob([currentResponse.body], { type: getContentType() || 'text/plain' });
+    const { ext, mime } = getFileInfo();
+    const blob = new Blob([currentResponse.body], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const extension = getFileExtension();
     a.href = url;
-    a.download = `response.${extension}`;
+    a.download = `response.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
