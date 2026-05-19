@@ -63,58 +63,101 @@ export function ResponsePanel() {
     // 去掉 charset 等参数，只保留主类型
     const mimeType = contentType.split(';')[0].trim();
 
-    // 办公文档
-    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) {
-      if (mimeType.includes('csv')) return { ext: 'csv', mime: 'text/csv' };
-      if (mimeType.includes('sheet') || mimeType.includes('excel')) {
-        if (mimeType.includes('openxmlformats')) return { ext: 'xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
-        return { ext: 'xls', mime: 'application/vnd.ms-excel' };
-      }
-      return { ext: 'csv', mime: 'text/csv' };
-    }
-
-    // Word 文档
-    if (mimeType.includes('word') || mimeType.includes('document')) {
-      if (mimeType.includes('openxmlformats')) return { ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
-      return { ext: 'doc', mime: 'application/msword' };
-    }
-
-    // PPT 演示文稿
-    if (mimeType.includes('presentation') || mimeType.includes('powerpoint') || mimeType.includes('slide')) {
-      if (mimeType.includes('openxmlformats')) return { ext: 'pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
-      return { ext: 'ppt', mime: 'application/vnd.ms-powerpoint' };
-    }
-
+    // ===== 办公文档 =====
+    // Excel
+    if (mimeType.includes('spreadsheetml.sheet')) return { ext: 'xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return { ext: 'xls', mime: 'application/vnd.ms-excel' };
+    if (mimeType.includes('csv')) return { ext: 'csv', mime: 'text/csv' };
+    // Word
+    if (mimeType.includes('wordprocessingml.document')) return { ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+    if (mimeType.includes('word')) return { ext: 'doc', mime: 'application/msword' };
+    // PPT
+    if (mimeType.includes('presentationml.presentation')) return { ext: 'pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return { ext: 'ppt', mime: 'application/vnd.ms-powerpoint' };
+    // WPS (金山办公)
+    if (mimeType.includes('kswps')) return { ext: 'wps', mime: 'application/kswps' };
+    if (mimeType.includes('et')) return { ext: 'et', mime: 'application/et' };
+    if (mimeType.includes('dps')) return { ext: 'dps', mime: 'application/dps' };
     // PDF
     if (mimeType.includes('pdf')) return { ext: 'pdf', mime: 'application/pdf' };
 
-    // 图片
+    // ===== 图片 =====
     if (mimeType.includes('image/png')) return { ext: 'png', mime: 'image/png' };
     if (mimeType.includes('image/jpeg') || mimeType.includes('image/jpg')) return { ext: 'jpg', mime: 'image/jpeg' };
     if (mimeType.includes('image/gif')) return { ext: 'gif', mime: 'image/gif' };
     if (mimeType.includes('image/svg')) return { ext: 'svg', mime: 'image/svg+xml' };
     if (mimeType.includes('image/webp')) return { ext: 'webp', mime: 'image/webp' };
+    if (mimeType.includes('image/bmp')) return { ext: 'bmp', mime: 'image/bmp' };
+    if (mimeType.includes('image/tiff') || mimeType.includes('image/tif')) return { ext: 'tiff', mime: 'image/tiff' };
+    if (mimeType.includes('image/ico')) return { ext: 'ico', mime: 'image/x-icon' };
+    if (mimeType.includes('image/avif')) return { ext: 'avif', mime: 'image/avif' };
+    if (mimeType.includes('image/heic') || mimeType.includes('image/heif')) return { ext: 'heic', mime: 'image/heic' };
     if (mimeType.includes('image/')) return { ext: 'bin', mime: mimeType };
 
-    // 压缩包
-    if (mimeType.includes('zip')) return { ext: 'zip', mime: 'application/zip' };
-    if (mimeType.includes('gzip')) return { ext: 'gz', mime: 'application/gzip' };
-    if (mimeType.includes('rar')) return { ext: 'rar', mime: 'application/vnd.rar' };
-    if (mimeType.includes('7z')) return { ext: '7z', mime: 'application/x-7z-compressed' };
+    // ===== 音频 =====
+    if (mimeType.includes('audio/mpeg') || mimeType.includes('audio/mp3')) return { ext: 'mp3', mime: 'audio/mpeg' };
+    if (mimeType.includes('audio/wav') || mimeType.includes('audio/wave')) return { ext: 'wav', mime: 'audio/wav' };
+    if (mimeType.includes('audio/ogg')) return { ext: 'ogg', mime: 'audio/ogg' };
+    if (mimeType.includes('audio/flac')) return { ext: 'flac', mime: 'audio/flac' };
+    if (mimeType.includes('audio/aac')) return { ext: 'aac', mime: 'audio/aac' };
+    if (mimeType.includes('audio/webm')) return { ext: 'weba', mime: 'audio/webm' };
+    if (mimeType.includes('audio/midi') || mimeType.includes('audio/mid')) return { ext: 'mid', mime: 'audio/midi' };
+    if (mimeType.includes('audio/')) return { ext: 'mp3', mime: mimeType };
 
-    // 数据格式
+    // ===== 视频 =====
+    if (mimeType.includes('video/mp4')) return { ext: 'mp4', mime: 'video/mp4' };
+    if (mimeType.includes('video/webm')) return { ext: 'webm', mime: 'video/webm' };
+    if (mimeType.includes('video/avi')) return { ext: 'avi', mime: 'video/x-msvideo' };
+    if (mimeType.includes('video/quicktime') || mimeType.includes('video/mov')) return { ext: 'mov', mime: 'video/quicktime' };
+    if (mimeType.includes('video/x-matroska') || mimeType.includes('video/mkv')) return { ext: 'mkv', mime: 'video/x-matroska' };
+    if (mimeType.includes('video/x-flv')) return { ext: 'flv', mime: 'video/x-flv' };
+    if (mimeType.includes('video/wmv')) return { ext: 'wmv', mime: 'video/x-ms-wmv' };
+    if (mimeType.includes('video/mpeg') || mimeType.includes('video/mpg')) return { ext: 'mpeg', mime: 'video/mpeg' };
+    if (mimeType.includes('video/3gpp')) return { ext: '3gp', mime: 'video/3gpp' };
+    if (mimeType.includes('video/')) return { ext: 'mp4', mime: mimeType };
+
+    // ===== 压缩包 =====
+    if (mimeType.includes('zip')) return { ext: 'zip', mime: 'application/zip' };
+    if (mimeType.includes('gzip') || mimeType.includes('gz')) return { ext: 'gz', mime: 'application/gzip' };
+    if (mimeType.includes('rar')) return { ext: 'rar', mime: 'application/vnd.rar' };
+    if (mimeType.includes('7z') || mimeType.includes('x-7z')) return { ext: '7z', mime: 'application/x-7z-compressed' };
+    if (mimeType.includes('tar')) return { ext: 'tar', mime: 'application/x-tar' };
+    if (mimeType.includes('xz')) return { ext: 'xz', mime: 'application/x-xz' };
+    if (mimeType.includes('bzip2') || mimeType.includes('bz2')) return { ext: 'bz2', mime: 'application/x-bzip2' };
+
+    // ===== 数据格式 =====
     if (mimeType.includes('json')) return { ext: 'json', mime: 'application/json' };
     if (mimeType.includes('xml')) return { ext: 'xml', mime: 'application/xml' };
-    if (mimeType.includes('yaml')) return { ext: 'yaml', mime: 'text/yaml' };
+    if (mimeType.includes('yaml') || mimeType.includes('yml')) return { ext: 'yaml', mime: 'text/yaml' };
+    if (mimeType.includes('toml')) return { ext: 'toml', mime: 'text/toml' };
+    if (mimeType.includes('protobuf') || mimeType.includes('proto')) return { ext: 'proto', mime: 'application/protobuf' };
+    if (mimeType.includes('graphql')) return { ext: 'graphql', mime: 'application/graphql' };
+    if (mimeType.includes('msgpack')) return { ext: 'msgpack', mime: 'application/x-msgpack' };
+
+    // ===== 网页/前端 =====
     if (mimeType.includes('html')) return { ext: 'html', mime: 'text/html' };
     if (mimeType.includes('css')) return { ext: 'css', mime: 'text/css' };
     if (mimeType.includes('javascript')) return { ext: 'js', mime: 'application/javascript' };
+    if (mimeType.includes('typescript')) return { ext: 'ts', mime: 'application/typescript' };
+    if (mimeType.includes('vue')) return { ext: 'vue', mime: 'text/x-vue' };
+    if (mimeType.includes('jsx')) return { ext: 'jsx', mime: 'text/jsx' };
+    if (mimeType.includes('tsx')) return { ext: 'tsx', mime: 'text/tsx' };
+    if (mimeType.includes('markdown') || mimeType.includes('md')) return { ext: 'md', mime: 'text/markdown' };
 
-    // 音视频
-    if (mimeType.includes('audio/')) return { ext: 'mp3', mime: mimeType };
-    if (mimeType.includes('video/')) return { ext: 'mp4', mime: mimeType };
+    // ===== 证书/密钥 =====
+    if (mimeType.includes('x-pem-file') || mimeType.includes('pem')) return { ext: 'pem', mime: 'application/x-pem-file' };
+    if (mimeType.includes('pkcs12') || mimeType.includes('p12') || mimeType.includes('pfx')) return { ext: 'pfx', mime: 'application/x-pkcs12' };
+    if (mimeType.includes('pkcs7') || mimeType.includes('p7b')) return { ext: 'p7b', mime: 'application/x-pkcs7-mime' };
+    if (mimeType.includes('x-x509-ca-cert') || mimeType.includes('cer') || mimeType.includes('crt')) return { ext: 'crt', mime: 'application/x-x509-ca-cert' };
 
-    // 文本
+    // ===== 字体 =====
+    if (mimeType.includes('font/woff2')) return { ext: 'woff2', mime: 'font/woff2' };
+    if (mimeType.includes('font/woff')) return { ext: 'woff', mime: 'font/woff' };
+    if (mimeType.includes('font/ttf') || mimeType.includes('truetype')) return { ext: 'ttf', mime: 'font/ttf' };
+    if (mimeType.includes('font/otf') || mimeType.includes('opentype')) return { ext: 'otf', mime: 'font/otf' };
+    if (mimeType.includes('font/eot')) return { ext: 'eot', mime: 'application/vnd.ms-fontobject' };
+
+    // ===== 文本 =====
     if (mimeType.includes('text')) return { ext: 'txt', mime: 'text/plain' };
 
     // 默认
