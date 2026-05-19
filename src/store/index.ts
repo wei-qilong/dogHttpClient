@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/tauri';
 import type { RequestConfig, ResponseData, Collection, Environment, HistoryItem } from '../types';
 
 // Simple UUID generator for browser compatibility
@@ -115,14 +116,12 @@ export const useAppStore = create<AppState>((set) => ({
   sendRequest: async () => {
     const state = useAppStore.getState();
     const { currentRequest } = state;
-    
+
     if (!currentRequest.url) return;
-    
+
     set({ isLoading: true });
-    
+
     try {
-      const startTime = Date.now();
-      
       // Build URL with query params
       let url = currentRequest.url;
       const enabledParams = currentRequest.params.filter(p => p.enabled && p.key);
@@ -133,34 +132,35 @@ export const useAppStore = create<AppState>((set) => ({
           .join('&');
         url = url + separator + queryString;
       }
-      
-      const response = await fetch(url, {
-        method: currentRequest.method,
-        headers: currentRequest.headers
-          .filter(h => h.enabled && h.key)
-          .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {}),
-        body: currentRequest.bodyType !== 'none' && currentRequest.bodyContent 
-          ? currentRequest.bodyContent 
-          : undefined,
+
+      // 调用 Tauri 后端代理请求，绕过 CORS
+      const result: any = await invoke('send_http_request', {
+        request: {
+          method: currentRequest.method,
+          url: url,
+          headers: currentRequest.headers
+            .filter(h => h.enabled && h.key)
+            .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {} as Record<string, string>),
+          body: currentRequest.bodyType !== 'none' && currentRequest.bodyContent
+            ? currentRequest.bodyContent
+            : null,
+        }
       });
-      
-      const endTime = Date.now();
-      const responseBody = await response.text();
-      
+
       const responseData: ResponseData = {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        body: responseBody,
-        time: endTime - startTime,
-        size: new Blob([responseBody]).size,
+        status: result.status,
+        statusText: result.status_text,
+        headers: result.headers,
+        body: result.body,
+        time: result.time_ms,
+        size: result.size_bytes,
       };
-      
-      set({ 
+
+      set({
         currentResponse: responseData,
-        isLoading: false 
+        isLoading: false
       });
-      
+
       // Add to history
       const historyItem: HistoryItem = {
         id: generateId(),
@@ -168,13 +168,23 @@ export const useAppStore = create<AppState>((set) => ({
         response: responseData,
         timestamp: Date.now(),
       };
-      
+
       set((state) => ({
         history: [historyItem, ...state.history.slice(0, 99)],
       }));
-      
-    } catch (error) {
-      set({ isLoading: false });
+
+    } catch (error: any) {
+      set({
+        isLoading: false,
+        currentResponse: {
+          status: 0,
+          statusText: 'Error',
+          headers: {},
+          body: error.message || String(error),
+          time: 0,
+          size: 0,
+        }
+      });
       console.error('Request failed:', error);
     }
   },
