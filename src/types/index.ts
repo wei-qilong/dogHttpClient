@@ -6,6 +6,9 @@ export interface KeyValuePair {
   value: string;
   description?: string;
   enabled: boolean;
+  // form-data 专用字段
+  type?: 'text' | 'file';
+  fileName?: string;
 }
 
 export interface RequestConfig {
@@ -20,6 +23,7 @@ export interface RequestConfig {
   bodyRawType: 'json' | 'xml' | 'text' | 'html';
   formData?: KeyValuePair[];
   urlEncoded?: KeyValuePair[];
+  binaryFile?: { name: string; type: string; data: string };
   preRequestScript: string;
   testsScript: string;
 }

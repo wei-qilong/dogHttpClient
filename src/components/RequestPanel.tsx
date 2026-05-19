@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import {
-  EyeInvisibleOutlined,
-  DeleteOutlined,
-  CopyOutlined
-} from '@ant-design/icons';
+import { DeleteOutlined, CopyOutlined } from '@ant-design/icons';
 import { 
   Button, 
   Input, 
@@ -11,7 +7,6 @@ import {
   Tabs, 
   Table, 
   Switch, 
-  Space, 
   Radio,
   Tag,
   Tooltip
@@ -263,11 +258,14 @@ function ParamsTab() {
 // Headers 标签页 - 绑定到 store
 function HeadersTab() {
   const { currentRequest, setCurrentRequest } = useAppStore();
-  const headers = currentRequest.headers;
+  const headers = currentRequest.headers || [];
+  const displayHeaders = headers.length > 0 
+    ? [...headers, { id: generateId(), key: '', value: '', description: '', enabled: true }]
+    : [{ id: generateId(), key: '', value: '', description: '', enabled: true }];
 
   const updateHeaders = (newHeaders: KeyValuePair[]) => {
-    const withEmptyRow = ensureEmptyRow(newHeaders);
-    setCurrentRequest({ headers: withEmptyRow });
+    const validHeaders = newHeaders.filter(p => p.key !== '' || p.value !== '');
+    setCurrentRequest({ headers: validHeaders });
   };
 
   const columns = [
@@ -279,7 +277,7 @@ function HeadersTab() {
           size="small" 
           checked={record.enabled}
           onChange={(checked) => {
-            const newHeaders = [...headers];
+            const newHeaders = [...displayHeaders];
             newHeaders[index] = { ...newHeaders[index], enabled: checked };
             updateHeaders(newHeaders);
           }}
@@ -295,7 +293,7 @@ function HeadersTab() {
           placeholder="Key"
           value={text}
           onChange={(e) => {
-            const newHeaders = [...headers];
+            const newHeaders = [...displayHeaders];
             newHeaders[index] = { ...newHeaders[index], key: e.target.value };
             updateHeaders(newHeaders);
           }}
@@ -317,7 +315,7 @@ function HeadersTab() {
           placeholder="Value"
           value={text}
           onChange={(e) => {
-            const newHeaders = [...headers];
+            const newHeaders = [...displayHeaders];
             newHeaders[index] = { ...newHeaders[index], value: e.target.value };
             updateHeaders(newHeaders);
           }}
@@ -334,7 +332,7 @@ function HeadersTab() {
           placeholder="Description"
           value={text || ''}
           onChange={(e) => {
-            const newHeaders = [...headers];
+            const newHeaders = [...displayHeaders];
             newHeaders[index] = { ...newHeaders[index], description: e.target.value };
             updateHeaders(newHeaders);
           }}
@@ -354,8 +352,8 @@ function HeadersTab() {
             icon={<DeleteOutlined />}
             style={{ color: '#94A3B8', fontSize: 12 }}
             onClick={() => {
-              if (headers.length <= 1) return;
-              const newHeaders = headers.filter((_, i) => i !== index);
+              if (displayHeaders.length <= 1) return;
+              const newHeaders = displayHeaders.filter((_, i) => i !== index);
               updateHeaders(newHeaders);
             }}
           />
@@ -366,31 +364,8 @@ function HeadersTab() {
 
   return (
     <div style={{ padding: '12px' }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        marginBottom: 8,
-        padding: '6px 10px',
-        background: '#F8FAFC',
-        borderRadius: 6
-      }}>
-        <span style={{ fontSize: 11, color: '#64748B', marginRight: 8 }}>Headers</span>
-        <Tooltip title="Bulk Edit">
-          <EyeInvisibleOutlined style={{ color: '#94A3B8', fontSize: 11, cursor: 'pointer' }} />
-        </Tooltip>
-        
-        <Space style={{ marginLeft: 'auto' }}>
-          <Button type="link" size="small" style={{ fontSize: 11, padding: 0 }}>
-            Bulk Edit
-          </Button>
-          <Button type="link" size="small" style={{ fontSize: 11, padding: 0 }}>
-            Presets
-          </Button>
-        </Space>
-      </div>
-      
       <Table
-        dataSource={headers}
+        dataSource={displayHeaders}
         columns={columns}
         pagination={false}
         size="small"
@@ -494,7 +469,53 @@ function BodyTab() {
           color: '#94A3B8',
           fontSize: 12
         }}>
-          Select a file to send as binary data
+          {currentRequest.binaryFile ? (
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                📄 {currentRequest.binaryFile.name}
+                <span style={{ marginLeft: 16, color: '#64748B' }}>
+                  ({currentRequest.binaryFile.type})
+                </span>
+              </div>
+              <Button 
+                size="small" 
+                onClick={() => setCurrentRequest({ binaryFile: undefined })}
+              >
+                移除文件
+              </Button>
+            </div>
+          ) : (
+            <label style={{ cursor: 'pointer', display: 'block' }}>
+              <div style={{ 
+                padding: '20px',
+                border: '2px dashed #E2E8F0',
+                borderRadius: 8,
+                marginBottom: 8
+              }}>
+                点击选择文件
+              </div>
+              <input
+                type="file"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setCurrentRequest({ 
+                        binaryFile: {
+                          name: file.name,
+                          type: file.type || 'application/octet-stream',
+                          data: reader.result as string
+                        }
+                      });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </label>
+          )}
         </div>
       )}
     </div>
@@ -504,25 +525,42 @@ function BodyTab() {
 // form-data 编辑器
 function FormDataBody() {
   const { currentRequest, setCurrentRequest } = useAppStore();
-  const formData = (currentRequest.formData && currentRequest.formData.length > 0)
-    ? currentRequest.formData
-    : [{ id: '__empty__', key: '', value: '', description: '', enabled: true }];
+  const formData = currentRequest.formData || [];
+  const emptyRow: KeyValuePair = { id: generateId(), key: '', value: '', description: '', enabled: true, type: 'text' };
+  const displayData: KeyValuePair[] = formData.length > 0 
+    ? [...formData, emptyRow]
+    : [emptyRow];
 
   const updateFormData = (newData: KeyValuePair[]) => {
-    const withEmptyRow = ensureEmptyRow(newData);
-    setCurrentRequest({ formData: withEmptyRow });
+    const validData = newData.filter(p => p.key !== '' || p.value !== '' || p.type === 'file');
+    setCurrentRequest({ formData: validData });
+  };
+
+  const handleFileSelect = (index: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const newData = [...displayData];
+      newData[index] = { 
+        ...newData[index], 
+        type: 'file',
+        fileName: file.name,
+        value: file.name
+      };
+      updateFormData(newData);
+    };
+    reader.readAsDataURL(file);
   };
 
   const columns = [
     {
       title: '',
       width: 32,
-      render: (_text: string, record: KeyValuePair, index: number) => (
+      render: (_text: string, _record: KeyValuePair, index: number) => (
         <Switch 
           size="small" 
-          checked={record.enabled}
+          checked={displayData[index].enabled}
           onChange={(checked) => {
-            const newData = [...formData];
+            const newData = [...displayData];
             newData[index] = { ...newData[index], enabled: checked };
             updateFormData(newData);
           }}
@@ -532,13 +570,13 @@ function FormDataBody() {
     {
       title: 'KEY',
       dataIndex: 'key',
-      width: '30%',
+      width: '25%',
       render: (text: string, _record: KeyValuePair, index: number) => (
         <Input
           placeholder="Key"
           value={text}
           onChange={(e) => {
-            const newData = [...formData];
+            const newData = [...displayData];
             newData[index] = { ...newData[index], key: e.target.value };
             updateFormData(newData);
           }}
@@ -550,37 +588,75 @@ function FormDataBody() {
     {
       title: 'VALUE',
       dataIndex: 'value',
-      width: '30%',
-      render: (text: string, _record: KeyValuePair, index: number) => (
-        <Input
-          placeholder="Value"
-          value={text}
+      width: '25%',
+      render: (text: string, _record: KeyValuePair, index: number) => {
+        const item = displayData[index];
+        return item.type === 'file' ? (
+          <span style={{ fontSize: 12, color: '#3B82F6' }}>
+            📄 {item.fileName || text}
+          </span>
+        ) : (
+          <Input
+            placeholder="Value"
+            value={text}
+            onChange={(e) => {
+              const newData = [...displayData];
+              newData[index] = { ...newData[index], value: e.target.value };
+              updateFormData(newData);
+            }}
+            bordered={false}
+            style={{ background: 'transparent', fontSize: 12 }}
+          />
+        );
+      },
+    },
+    {
+      title: 'TYPE',
+      width: 80,
+      render: (_text: string, _record: KeyValuePair, index: number) => (
+        <select
+          value={displayData[index].type || 'text'}
           onChange={(e) => {
-            const newData = [...formData];
-            newData[index] = { ...newData[index], value: e.target.value };
+            const newData = [...displayData];
+            newData[index] = { 
+              ...newData[index], 
+              type: e.target.value as 'text' | 'file',
+              value: e.target.value === 'text' ? '' : newData[index].value,
+              fileName: e.target.value === 'text' ? undefined : newData[index].fileName
+            };
             updateFormData(newData);
           }}
-          bordered={false}
-          style={{ background: 'transparent', fontSize: 12 }}
-        />
+          style={{ 
+            fontSize: 11, 
+            border: 'none', 
+            background: 'transparent',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="text">Text</option>
+          <option value="file">File</option>
+        </select>
       ),
     },
     {
-      title: 'DESCRIPTION',
-      dataIndex: 'description',
-      render: (text: string, _record: KeyValuePair, index: number) => (
-        <Input
-          placeholder="Description"
-          value={text || ''}
-          onChange={(e) => {
-            const newData = [...formData];
-            newData[index] = { ...newData[index], description: e.target.value };
-            updateFormData(newData);
-          }}
-          bordered={false}
-          style={{ background: 'transparent', color: '#94A3B8', fontSize: 12 }}
-        />
-      ),
+      title: '',
+      width: 80,
+      render: (_text: string, _record: KeyValuePair, index: number) => {
+        const item = displayData[index];
+        return item.type === 'file' ? (
+          <label style={{ fontSize: 11, color: '#3B82F6', cursor: 'pointer' }}>
+            选择文件
+            <input
+              type="file"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileSelect(index, file);
+              }}
+            />
+          </label>
+        ) : null;
+      },
     },
     {
       title: '',
@@ -593,8 +669,8 @@ function FormDataBody() {
             icon={<DeleteOutlined />}
             style={{ color: '#94A3B8', fontSize: 12 }}
             onClick={() => {
-              if (formData.length <= 1) return;
-              const newData = formData.filter((_, i) => i !== index);
+              if (displayData.length <= 1) return;
+              const newData = displayData.filter((_, i) => i !== index);
               updateFormData(newData);
             }}
           />
@@ -605,7 +681,7 @@ function FormDataBody() {
 
   return (
     <Table
-      dataSource={formData}
+      dataSource={displayData}
       columns={columns}
       pagination={false}
       size="small"
