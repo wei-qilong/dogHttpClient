@@ -936,7 +936,7 @@ function CodeTab() {
 
   // 生成 curl 命令
   const generateCurl = () => {
-    const { method, url, headers, bodyContent, bodyType, params } = currentRequest;
+    const { method, url, headers, bodyContent, bodyType, params, formData, urlEncoded, binaryFile } = currentRequest;
     if (!url) return 'curl';
 
     // 构建带 params 的 URL
@@ -959,8 +959,31 @@ function CodeTab() {
     }
 
     // 添加 body
-    if (['POST', 'PUT', 'PATCH'].includes(method) && bodyType !== 'none' && bodyContent) {
-      parts.push(`  -d '${bodyContent}'`);
+    if (['POST', 'PUT', 'PATCH'].includes(method) && bodyType !== 'none') {
+      if (bodyType === 'raw' && bodyContent) {
+        parts.push(`  -H 'Content-Type: application/json'`);
+        parts.push(`  -d '${bodyContent.replace(/'/g, "'\\''")}'`);
+      } else if (bodyType === 'x-www-form-urlencoded' && urlEncoded) {
+        const enabledData = urlEncoded.filter(p => p.enabled && p.key);
+        if (enabledData.length > 0) {
+          const dataStr = enabledData.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+          parts.push(`  -H 'Content-Type: application/x-www-form-urlencoded'`);
+          parts.push(`  -d '${dataStr}'`);
+        }
+      } else if (bodyType === 'form-data' && formData) {
+        const enabledData = formData.filter(p => p.enabled && p.key);
+        if (enabledData.length > 0) {
+          for (const item of enabledData) {
+            if (item.type === 'file' && item.fileName) {
+              parts.push(`  -F '${item.key}=@${item.fileName}'`);
+            } else {
+              parts.push(`  -F '${item.key}=${item.value}'`);
+            }
+          }
+        }
+      } else if (bodyType === 'binary' && binaryFile) {
+        parts.push(`  --data-binary '@${binaryFile.name}'`);
+      }
     }
 
     parts.push(`  '${finalUrl}'`);
