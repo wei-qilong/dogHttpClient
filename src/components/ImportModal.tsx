@@ -41,30 +41,21 @@ const parseCurl = (curlCommand: string): Partial<RequestConfig> | null => {
       testsScript: '',
     };
 
-    // 提取 URL（单引号或双引号包裹，或不带引号）
-    const urlMatch = cmd.match(/curl\s+(?:(?:-[A-Za-z]+\s+(?:'([^']+)'|"([^"]+)"|[^\s]+)\s*)*)?'([^']+)'/i) ||
-                     cmd.match(/curl\s+(?:(?:-[A-Za-z]+\s+(?:'([^']+)'|"([^"]+)"|[^\s]+)\s*)*)"?([^"\s]+)"?/i);
-    
-    if (urlMatch) {
-      result.url = urlMatch[3] || urlMatch[2] || urlMatch[1] || '';
-    } else {
-      // 直接获取 URL
-      const directUrlMatch = cmd.match(/curl\s+(?:'([^']+)'|"([^"]+)"|([^\s]+))/i);
-      if (directUrlMatch) {
-        result.url = directUrlMatch[3] || directUrlMatch[2] || directUrlMatch[1] || '';
-      }
-    }
+    // 移除 --location 等选项，简化后续处理
+    cmd = cmd.replace(/--location\s*/gi, '');
+    cmd = cmd.replace(/-L\s*/gi, '');
 
-    // 提取 Method
+    // 提取 Method (-X 或 --request)
     const methodMatch = cmd.match(/-X\s+['"]?(\w+)['"]?/i) || cmd.match(/--request\s+['"]?(\w+)['"]?/i);
     if (methodMatch) {
       result.method = methodMatch[1].toUpperCase() as RequestConfig['method'];
     }
 
-    // 提取 Headers (-H)
-    const headerMatches = cmd.matchAll(/-H\s+['"]([^'"]+)['"]/gi) || cmd.matchAll(/-H\s+(\S+)/gi);
-    for (const match of headerMatches) {
-      const header = match[1];
+    // 提取 Headers (-H 或 --header)
+    const headerRegex = /-H\s+['"]([^'"]+)['"]/gi;
+    let headerMatch;
+    while ((headerMatch = headerRegex.exec(cmd)) !== null) {
+      const header = headerMatch[1];
       const colonIndex = header.indexOf(':');
       if (colonIndex > 0) {
         const key = header.substring(0, colonIndex).trim();
@@ -78,63 +69,110 @@ const parseCurl = (curlCommand: string): Partial<RequestConfig> | null => {
       }
     }
 
-    // 提取 User-Agent (-A)
-    const userAgentMatch = cmd.match(/-A\s+['"]?([^'"]+)['"]?/i) || cmd.match(/--user-agent\s+['"]?([^'"]+)['"]?/i);
-    if (userAgentMatch) {
-      result.headers!.push({
-        id: genId(),
-        key: 'User-Agent',
-        value: userAgentMatch[1],
-        enabled: true,
-      });
-    }
-
-    // 提取 Content-Type
-    const contentTypeMatch = cmd.match(/--header\s+['"]Content-Type:\s*([^'"]+)['"]/i) || 
-                             cmd.match(/-H\s+['"]Content-Type:\s*([^'"]+)['"]/i);
-    if (contentTypeMatch && !result.headers!.some(h => h.key.toLowerCase() === 'content-type')) {
-      result.headers!.push({
-        id: genId(),
-        key: 'Content-Type',
-        value: contentTypeMatch[1],
-        enabled: true,
-      });
-    }
-
-    // 提取 Body (-d 或 --data)
-    const dataMatch = cmd.match(/-d\s+['"]([^'"]+)['"]/i) || 
-                      cmd.match(/--data\s+['"]([^'"]+)['"]/i) ||
-                      cmd.match(/-d\s+(\S+)/i) ||
-                      cmd.match(/--data\s+(\S+)/i) ||
-                      cmd.match(/--data-raw\s+['"]?([^'"\s]+)['"]?/i);
-    
-    if (dataMatch) {
-      const bodyContent = dataMatch[1];
-      
-      // 检查 Content-Type
-      const contentType = result.headers!.find(h => h.key.toLowerCase() === 'content-type')?.value || '';
-      
-      if (contentType.includes('application/json') || contentType.includes('json')) {
-        result.bodyType = 'raw';
-        result.bodyRawType = 'json';
-        result.bodyContent = bodyContent;
-      } else if (contentType.includes('application/x-www-form-urlencoded')) {
-        result.bodyType = 'x-www-form-urlencoded';
-        // 解析 key=value&key=value 格式
-        const pairs = bodyContent.split('&');
-        result.urlEncoded = pairs.map(pair => {
-          const [key, value] = pair.split('=');
-          return {
-            id: genId(),
-            key: decodeURIComponent(key || ''),
-            value: decodeURIComponent(value || ''),
-            enabled: true,
-          };
+    // 提取 --form 数据 (multipart/form-data)
+    const formRegex = /--form\s+['"]([^'"]+)['"]/gi;
+    let formMatch;
+    while ((formMatch = formRegex.exec(cmd)) !== null) {
+      const formValue = formMatch[1];
+      // 格式: name="value" 或 name=@filename
+      const equalIndex = formValue.indexOf('=');
+      if (equalIndex > 0) {
+        const key = formValue.substring(0, equalIndex).trim();
+        let value = formValue.substring(equalIndex + 1).trim();
+        // 移除引号
+        value = value.replace(/^["']|["']$/g, '');
+        
+        // 检查是否是文件上传
+        const isFile = value.startsWith('@');
+        result.formData!.push({
+          id: genId(),
+          key,
+          value: isFile ? value.substring(1) : value,
+          fileName: isFile ? value.substring(1) : undefined,
+          type: isFile ? 'file' : 'text',
+          enabled: true,
         });
-      } else {
-        result.bodyType = 'raw';
-        result.bodyContent = bodyContent;
+        result.bodyType = 'form-data';
       }
+    }
+
+    // 提取 Body (-d, --data, --data-raw)
+    const dataPatterns = [
+      /--data-raw\s+['"]([^'"]+)['"]/i,
+      /--data\s+['"]([^'"]+)['"]/i,
+      /-d\s+['"]([^'"]+)['"]/i,
+    ];
+    
+    let bodyExtracted = false;
+    for (const pattern of dataPatterns) {
+      const dataMatch = cmd.match(pattern);
+      if (dataMatch && !bodyExtracted) {
+        bodyExtracted = true;
+        let bodyContent = dataMatch[1];
+        
+        // 如果有 Content-Type，检查 body 类型
+        const contentType = result.headers!.find(h => h.key.toLowerCase() === 'content-type')?.value || '';
+        
+        if (result.bodyType !== 'form-data') {
+          if (contentType.includes('application/json') || 
+              (bodyContent.trim().startsWith('{') || bodyContent.trim().startsWith('['))) {
+            result.bodyType = 'raw';
+            result.bodyRawType = 'json';
+            result.bodyContent = bodyContent;
+          } else if (contentType.includes('application/x-www-form-urlencoded')) {
+            result.bodyType = 'x-www-form-urlencoded';
+            const pairs = bodyContent.split('&');
+            result.urlEncoded = pairs.map(pair => {
+              const [key, value] = pair.split('=');
+              return {
+                id: genId(),
+                key: decodeURIComponent(key || ''),
+                value: decodeURIComponent(value || ''),
+                enabled: true,
+              };
+            });
+          } else {
+            result.bodyType = 'raw';
+            result.bodyRawType = 'text';
+            result.bodyContent = bodyContent;
+          }
+        }
+      }
+    }
+
+    // 提取 URL（必须在最后处理，确保其他选项都已提取）
+    // 移除已知的选项后提取 URL
+    let urlCmd = cmd
+      .replace(/-X\s+\w+\s*/gi, '')
+      .replace(/--request\s+\w+\s*/gi, '')
+      .replace(/-H\s+['"][^'"]+['"]\s*/gi, '')
+      .replace(/--header\s+['"][^'"]+['"]\s*/gi, '')
+      .replace(/--form\s+['"][^'"]+['"]\s*/gi, '')
+      .replace(/-d\s+['"][^'"]+['"]\s*/gi, '')
+      .replace(/--data\s+['"][^'"]+['"]\s*/gi, '')
+      .replace(/--data-raw\s+['"][^'"]+['"]\s*/gi, '')
+      .replace(/--location\s*/gi, '')
+      .replace(/-L\s*/gi, '')
+      .trim();
+
+    // 提取 curl 后面的 URL
+    const urlMatch = urlCmd.match(/curl\s+['"]?([^'"\s]+)['"]?\s*$/i) ||
+                    urlCmd.match(/curl\s+['"]([^'"]+)['"]/i) ||
+                    urlCmd.match(/curl\s+"([^"]+)"/i);
+    
+    if (urlMatch) {
+      result.url = urlMatch[1] || '';
+    } else {
+      // 尝试直接获取最后一个有效 URL
+      const words = urlCmd.split(/\s+/).filter(w => w && !w.startsWith('-'));
+      if (words.length > 0) {
+        result.url = words[words.length - 1];
+      }
+    }
+
+    // 移除 URL 中的引号
+    if (result.url) {
+      result.url = result.url.replace(/^['"]|['"]$/g, '');
     }
 
     // 提取 URL 参数 (?后面的部分)
@@ -154,9 +192,6 @@ const parseCurl = (curlCommand: string): Partial<RequestConfig> | null => {
           };
         });
       }
-
-      // 移除 URL 中的引号
-      result.url = result.url.replace(/^['"]|['"]$/g, '');
     }
 
     return result;
