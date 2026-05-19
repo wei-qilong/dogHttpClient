@@ -173,19 +173,35 @@ export const useAppStore = create<AppState>((set) => ({
           requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
         }
       } else if (currentRequest.bodyType === 'form-data' && currentRequest.formData) {
-        // form-data 需要特殊处理，这里先用简单的 key=value 格式
+        // form-data 生成真正的 multipart/form-data 格式
         const enabledData = currentRequest.formData.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
+          // 生成随机 boundary
+          const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2, 15);
+          
           const formParts: string[] = [];
           for (const item of enabledData) {
+            formParts.push(`--${boundary}`);
             if (item.type === 'file' && item.fileName) {
-              formParts.push(`${encodeURIComponent(item.key)}=${encodeURIComponent(item.fileName)}`);
+              // 文件字段
+              const contentType = item.fileName.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image/jpeg' : 'application/octet-stream';
+              formParts.push(`Content-Disposition: form-data; name="${item.key}"; filename="${item.fileName}"`);
+              formParts.push(`Content-Type: ${contentType}`);
+              formParts.push('');
+              // 文件内容 - 这里简化处理，实际应该读取文件内容
+              formParts.push(item.value || '');
             } else {
-              formParts.push(`${encodeURIComponent(item.key)}=${encodeURIComponent(item.value)}`);
+              // 普通文本字段
+              formParts.push(`Content-Disposition: form-data; name="${item.key}"`);
+              formParts.push('');
+              formParts.push(item.value);
             }
           }
-          requestBody = formParts.join('&');
-          requestHeaders['Content-Type'] = 'multipart/form-data';
+          formParts.push(`--${boundary}--`);
+          formParts.push(''); // 结尾空行
+          
+          requestBody = formParts.join('\r\n');
+          requestHeaders['Content-Type'] = `multipart/form-data; boundary=${boundary}`;
         }
       } else if (currentRequest.bodyType === 'binary' && currentRequest.binaryFile) {
         requestBody = currentRequest.binaryFile.data;

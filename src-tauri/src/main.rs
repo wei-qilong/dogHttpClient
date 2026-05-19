@@ -30,6 +30,16 @@ pub struct HttpError {
     pub message: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct FormDataItem {
+    pub key: String,
+    pub value: String,
+    #[serde(default)]
+    pub file_name: Option<String>,
+    #[serde(default)]
+    pub content_type: Option<String>,
+}
+
 #[tauri::command]
 async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpError> {
     let client = reqwest::Client::new();
