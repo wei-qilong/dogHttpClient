@@ -167,12 +167,23 @@ function App() {
     }
   };
 
+  // 生成唯一的 Request 名称（跨所有 collections）
+  const generateRequestName = () => {
+    const allRequests = collections.flatMap(c => c.requests);
+    const existingNames = allRequests.map(r => r.name);
+    let counter = 1;
+    while (existingNames.includes(`New Request ${counter}`)) {
+      counter++;
+    }
+    return `New Request ${counter}`;
+  };
+
   // 创建新请求
   const handleNewRequest = () => {
     const genId = () => Math.random().toString(36).substring(2, 10);
     const newRequest = {
       id: genId(),
-      name: '未命名请求',
+      name: generateRequestName(),
       method: 'GET' as const,
       url: '',
       params: [],

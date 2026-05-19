@@ -36,6 +36,16 @@ const methodColors: Record<string, string> = {
 // 简单 ID 生成
 const genId = () => Math.random().toString(36).substring(2, 10);
 
+// 生成唯一的 Request 名称
+const generateRequestName = (requests: RequestConfig[]) => {
+  const existingNames = requests.map(r => r.name);
+  let counter = 1;
+  while (existingNames.includes(`New Request ${counter}`)) {
+    counter++;
+  }
+  return `New Request ${counter}`;
+};
+
 // 图标导航栏组件 - 图标+文字纵向排列
 export function Sidebar() {
   const { sidebarActiveTab, setSidebarActiveTab, toggleSidebar } = useAppStore();
@@ -154,18 +164,6 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
 
   const isDefaultCollection = (id: string) => id === SCRATCH_PAD_ID;
 
-  // 生成 request 名称：New Request [1,2,3...]
-  const generateRequestName = (colId: string) => {
-    const col = collections.find(c => c.id === colId);
-    if (!col) return 'New Request 1';
-    const existingNames = col.requests.map(r => r.name);
-    let counter = 1;
-    while (existingNames.includes(`New Request ${counter}`)) {
-      counter++;
-    }
-    return `New Request ${counter}`;
-  };
-
   const toggleExpand = (key: string) => {
     setExpandedKeys(prev => 
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
@@ -174,9 +172,18 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
 
   const handleAddCollection = () => {
     if (!newCollectionName.trim()) return;
+    
+    // 检查 Collection 名称是否已存在
+    const trimmedName = newCollectionName.trim();
+    const existingNames = collections.map(c => c.name);
+    if (existingNames.includes(trimmedName)) {
+      message.error(`Collection "${trimmedName}" already exists`);
+      return;
+    }
+    
     const newCol: Collection = {
       id: genId(),
-      name: newCollectionName.trim(),
+      name: trimmedName,
       requests: [],
       folders: [],
     };
@@ -199,9 +206,18 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
   const handleRenameCollection = (id: string) => {
     if (isDefaultCollection(id)) { setEditingColId(null); return; }
     if (!editColName.trim()) { setEditingColId(null); return; }
+    
+    // 检查 Collection 名称是否已存在（排除当前 collection）
+    const trimmedName = editColName.trim();
+    const existingNames = collections.filter(c => c.id !== id).map(c => c.name);
+    if (existingNames.includes(trimmedName)) {
+      message.error(`Collection "${trimmedName}" already exists`);
+      return;
+    }
+    
     useAppStore.setState(state => ({
       collections: state.collections.map(c => 
-        c.id === id ? { ...c, name: editColName.trim() } : c
+        c.id === id ? { ...c, name: trimmedName } : c
       )
     }));
     setEditingColId(null);
@@ -209,7 +225,8 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
   };
 
   const handleAddRequest = (colId: string) => {
-    const reqName = generateRequestName(colId);
+    const col = collections.find(c => c.id === colId);
+    const reqName = generateRequestName(col?.requests || []);
     const newReq: RequestConfig = {
       id: genId(),
       name: reqName,
@@ -246,10 +263,22 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
 
   const handleRenameRequest = (colId: string, reqId: string) => {
     if (!editReqName.trim()) { setEditingReqId(null); return; }
+    
+    // 检查 Request 名称在同一 Collection 内是否已存在（排除当前 request）
+    const trimmedName = editReqName.trim();
+    const col = collections.find(c => c.id === colId);
+    if (col) {
+      const existingNames = col.requests.filter(r => r.id !== reqId).map(r => r.name);
+      if (existingNames.includes(trimmedName)) {
+        message.error(`Request "${trimmedName}" already exists in this collection`);
+        return;
+      }
+    }
+    
     useAppStore.setState(state => ({
       collections: state.collections.map(c => {
         if (c.id === colId) {
-          return { ...c, requests: c.requests.map(r => r.id === reqId ? { ...r, name: editReqName.trim() } : r) };
+          return { ...c, requests: c.requests.map(r => r.id === reqId ? { ...r, name: trimmedName } : r) };
         }
         return c;
       })
