@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout, Space, Button, Divider, Dropdown, Input, Tooltip } from 'antd';
 import {
   MenuFoldOutlined,
@@ -13,11 +13,36 @@ import { useAppStore } from './store';
 import { Sidebar, SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
-import type { HttpMethod } from './types';
+import type { HttpMethod, KeyValuePair } from './types';
 
 const { Header, Sider, Content } = Layout;
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+
+// 解析URL中的query参数
+const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[] } => {
+  try {
+    const urlObj = new URL(url);
+    const searchParams = urlObj.searchParams;
+    const params: KeyValuePair[] = [];
+    
+    searchParams.forEach((value, key) => {
+      params.push({
+        id: Math.random().toString(36).substring(2, 10),
+        key,
+        value,
+        description: '',
+        enabled: true
+      });
+    });
+    
+    // 清除URL中的query字符串
+    urlObj.search = '';
+    return { cleanUrl: urlObj.toString(), params };
+  } catch {
+    return { cleanUrl: url, params: [] };
+  }
+};
 
 const methodColors: Record<HttpMethod, string> = {
   GET: '#10B981',
@@ -58,6 +83,39 @@ function App() {
     setEditRequestName(currentRequest.name || '');
     setEditingRequest(true);
   };
+
+  // 监听 params 变化，同步更新 URL（双向绑定）
+  const prevParamsRef = { current: currentRequest.params };
+  useEffect(() => {
+    const prevParams = prevParamsRef.current;
+    const currParams = currentRequest.params;
+    
+    // 比较 params 是否变化
+    if (prevParams !== currParams) {
+      prevParamsRef.current = currParams;
+      
+      const enabledParams = currParams.filter(p => p.enabled && p.key);
+      if (!currentRequest.url || !currentRequest.url.includes('?')) {
+        // URL 没有 query 参数，不处理
+        return;
+      }
+      
+      try {
+        const urlObj = new URL(currentRequest.url);
+        const queryString = enabledParams
+          .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+          .join('&');
+        
+        // 只在有变化时更新
+        if (urlObj.search.slice(1) !== queryString) {
+          urlObj.search = queryString;
+          setCurrentRequest({ url: urlObj.toString() });
+        }
+      } catch {
+        // 非合法URL，忽略
+      }
+    }
+  }, [currentRequest.params, currentRequest.url, setCurrentRequest]);
 
   // 保存 Collection 名称
   const saveCollectionName = () => {
@@ -379,7 +437,18 @@ function App() {
               {/* URL 输入框 */}
               <Input
                 value={currentRequest.url}
-                onChange={(e) => setCurrentRequest({ url: e.target.value })}
+                onChange={(e) => {
+                  const newUrl = e.target.value;
+                  // 如果URL中有query参数，自动填充到params
+                  if (newUrl.includes('?')) {
+                    const { cleanUrl, params } = parseUrlParams(newUrl);
+                    if (params.length > 0) {
+                      setCurrentRequest({ url: cleanUrl, params });
+                      return;
+                    }
+                  }
+                  setCurrentRequest({ url: newUrl });
+                }}
                 placeholder="Enter request URL"
                 style={{
                   flex: 1,

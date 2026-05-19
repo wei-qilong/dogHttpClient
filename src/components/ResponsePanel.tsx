@@ -3,18 +3,16 @@ import {
   ClockCircleOutlined, 
   DatabaseOutlined, 
   CopyOutlined, 
-  DownloadOutlined,
-  SearchOutlined,
-  EyeOutlined
+  DownloadOutlined
 } from '@ant-design/icons';
-import { Tabs, Tag, Button, Space, Empty, Table, Tooltip, Radio } from 'antd';
+import { Tabs, Tag, Button, Space, Empty, Table } from 'antd';
 import { useAppStore } from '../store';
 
 const { TabPane } = Tabs;
 
 export function ResponsePanel() {
   const { currentResponse, responseTab, setResponseTab } = useAppStore();
-  const [viewMode, setViewMode] = useState('pretty');
+  const [copied, setCopied] = useState(false);
 
   if (!currentResponse) {
     return (
@@ -51,6 +49,53 @@ export function ResponsePanel() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // 获取响应内容类型
+  const getContentType = () => {
+    const contentType = currentResponse.headers?.['content-type'] || 
+                        currentResponse.headers?.['Content-Type'] || 
+                        '';
+    return contentType;
+  };
+
+  // 根据 Content-Type 获取文件扩展名
+  const getFileExtension = () => {
+    const contentType = getContentType().toLowerCase();
+    if (contentType.includes('json')) return 'json';
+    if (contentType.includes('xml')) return 'xml';
+    if (contentType.includes('html')) return 'html';
+    if (contentType.includes('css')) return 'css';
+    if (contentType.includes('javascript')) return 'js';
+    if (contentType.includes('image/png')) return 'png';
+    if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) return 'jpg';
+    if (contentType.includes('image/gif')) return 'gif';
+    if (contentType.includes('image/svg')) return 'svg';
+    if (contentType.includes('pdf')) return 'pdf';
+    if (contentType.includes('zip')) return 'zip';
+    if (contentType.includes('text')) return 'txt';
+    return 'txt';
+  };
+
+  // 复制响应到剪切板
+  const handleCopy = () => {
+    navigator.clipboard.writeText(currentResponse.body);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 保存响应到文件
+  const handleSave = () => {
+    const blob = new Blob([currentResponse.body], { type: getContentType() || 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const extension = getFileExtension();
+    a.href = url;
+    a.download = `response.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const headerColumns = [
     {
       title: 'KEY',
@@ -78,14 +123,14 @@ export function ResponsePanel() {
     },
   ];
 
-  const headerData = Object.entries(currentResponse.headers).map(([key, value]) => ({
+  const headerData = Object.entries(currentResponse.headers || {}).map(([key, value]) => ({
     key,
     value,
   }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', background: '#FFFFFF' }}>
-      {/* Response Meta - 参考图片风格 */}
+      {/* Response Meta */}
       <div style={{ 
         padding: '10px 16px', 
         borderBottom: '1px solid #E2E8F0',
@@ -123,14 +168,16 @@ export function ResponsePanel() {
             type="text" 
             size="small" 
             icon={<CopyOutlined />}
+            onClick={handleCopy}
             style={{ color: '#64748B', fontSize: 12 }}
           >
-            Copy
+            {copied ? 'Copied!' : 'Copy'}
           </Button>
           <Button 
             type="text" 
             size="small" 
             icon={<DownloadOutlined />}
+            onClick={handleSave}
             style={{ color: '#64748B', fontSize: 12 }}
           >
             Save Response
@@ -138,7 +185,7 @@ export function ResponsePanel() {
         </Space>
       </div>
 
-      {/* Response Tabs - 参考图片风格 */}
+      {/* Response Tabs */}
       <Tabs 
         activeKey={responseTab} 
         onChange={(key) => setResponseTab(key as 'headers' | 'body')}
@@ -155,31 +202,6 @@ export function ResponsePanel() {
           key="body"
         >
           <div style={{ padding: '12px 16px' }}>
-            {/* Body 视图切换 */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              marginBottom: 12
-            }}>
-              <Radio.Group 
-                value={viewMode} 
-                onChange={(e) => setViewMode(e.target.value)}
-                size="small"
-              >
-                <Radio.Button value="pretty" style={{ fontSize: 12 }}>Pretty</Radio.Button>
-                <Radio.Button value="raw" style={{ fontSize: 12 }}>Raw</Radio.Button>
-                <Radio.Button value="preview" style={{ fontSize: 12 }}>Preview</Radio.Button>
-                <Radio.Button value="visualize" style={{ fontSize: 12 }}>Visualize</Radio.Button>
-              </Radio.Group>
-
-              <Space size={8}>
-                <span style={{ fontSize: 12, color: '#64748B' }}>JSON</span>
-                <Button type="text" size="small" icon={<SearchOutlined />} style={{ color: '#64748B' }} />
-                <Button type="text" size="small" icon={<EyeOutlined />} style={{ color: '#64748B' }} />
-              </Space>
-            </div>
-
             {/* Body 内容 */}
             <pre style={{ 
               background: '#F8FAFC', 
@@ -191,8 +213,10 @@ export function ResponsePanel() {
               color: '#1E293B',
               lineHeight: 1.6,
               margin: 0,
+              overflow: 'auto',
               whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all'
+              wordBreak: 'break-all',
+              maxHeight: 'calc(100vh - 300px)'
             }}>
               <code>{currentResponse.body}</code>
             </pre>
@@ -211,21 +235,6 @@ export function ResponsePanel() {
           key="headers"
         >
           <div style={{ padding: '12px 16px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              marginBottom: 12,
-              padding: '8px 12px',
-              background: '#F8FAFC',
-              borderRadius: 6
-            }}>
-              <span style={{ fontSize: 12, color: '#64748B' }}>Headers</span>
-              <Tooltip title="hidden">
-                <EyeOutlined style={{ color: '#94A3B8', fontSize: 12, marginLeft: 8 }} />
-              </Tooltip>
-              <span style={{ marginLeft: 8, fontSize: 12, color: '#94A3B8' }}>10 hidden</span>
-            </div>
-
             <Table
               dataSource={headerData}
               columns={headerColumns}
