@@ -137,13 +137,19 @@ export function RequestPanel() {
 // Params 标签页 - 绑定到 store
 function ParamsTab() {
   const { currentRequest, setCurrentRequest } = useAppStore();
-  const params = currentRequest.params.length > 0 
-    ? currentRequest.params 
-    : [{ id: '__empty__', key: '', value: '', description: '', enabled: true }];
+  
+  // 确保 params 数组存在，如果不存在则初始化为空数组
+  const params = currentRequest.params || [];
+  
+  // 显示用的数据（添加空行用于输入）
+  const displayParams = params.length > 0 
+    ? [...params, { id: generateId(), key: '', value: '', description: '', enabled: true }]
+    : [{ id: generateId(), key: '', value: '', description: '', enabled: true }];
 
   const updateParams = (newParams: KeyValuePair[]) => {
-    const withEmptyRow = ensureEmptyRow(newParams);
-    setCurrentRequest({ params: withEmptyRow });
+    // 过滤掉空行（key 和 value 都为空）
+    const validParams = newParams.filter(p => p.key !== '' || p.value !== '');
+    setCurrentRequest({ params: validParams });
   };
 
   const columns = [
@@ -155,7 +161,7 @@ function ParamsTab() {
           size="small" 
           checked={record.enabled}
           onChange={(checked) => {
-            const newParams = [...params];
+            const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], enabled: checked };
             updateParams(newParams);
           }}
@@ -171,7 +177,7 @@ function ParamsTab() {
           placeholder="Key"
           value={text}
           onChange={(e) => {
-            const newParams = [...params];
+            const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], key: e.target.value };
             updateParams(newParams);
           }}
@@ -189,7 +195,7 @@ function ParamsTab() {
           placeholder="Value"
           value={text}
           onChange={(e) => {
-            const newParams = [...params];
+            const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], value: e.target.value };
             updateParams(newParams);
           }}
@@ -206,7 +212,7 @@ function ParamsTab() {
           placeholder="Description"
           value={text || ''}
           onChange={(e) => {
-            const newParams = [...params];
+            const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], description: e.target.value };
             updateParams(newParams);
           }}
@@ -226,8 +232,8 @@ function ParamsTab() {
             icon={<DeleteOutlined />}
             style={{ color: '#94A3B8', fontSize: 12 }}
             onClick={() => {
-              if (params.length <= 1) return;
-              const newParams = params.filter((_, i) => i !== index);
+              if (displayParams.length <= 1) return;
+              const newParams = displayParams.filter((_, i) => i !== index);
               updateParams(newParams);
             }}
           />
@@ -239,7 +245,7 @@ function ParamsTab() {
   return (
     <div style={{ padding: '12px' }}>
       <Table
-        dataSource={params}
+        dataSource={displayParams}
         columns={columns}
         pagination={false}
         size="small"
