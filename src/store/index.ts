@@ -125,12 +125,18 @@ export const useAppStore = create<AppState>((set) => ({
       // Build URL with query params
       let url = currentRequest.url;
       const enabledParams = currentRequest.params.filter(p => p.enabled && p.key);
+      
+      console.log('[sendRequest] URL:', url);
+      console.log('[sendRequest] All params:', JSON.stringify(currentRequest.params));
+      console.log('[sendRequest] Enabled params:', JSON.stringify(enabledParams));
+      
       if (enabledParams.length > 0) {
         const separator = url.includes('?') ? '&' : '?';
         const queryString = enabledParams
           .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
           .join('&');
         url = url + separator + queryString;
+        console.log('[sendRequest] Final URL:', url);
       }
 
       // 调用 Tauri 后端代理请求，绕过 CORS
