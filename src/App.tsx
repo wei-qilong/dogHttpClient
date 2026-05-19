@@ -7,7 +7,8 @@ import {
   SettingOutlined,
   DownOutlined,
   SendOutlined,
-  SaveOutlined
+  SaveOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import { useAppStore } from './store';
 import { Sidebar, SidebarContent } from './components/Sidebar';
@@ -284,13 +285,14 @@ function App() {
             type="text"
             icon={<PlusOutlined />}
             onClick={handleNewRequest}
-            style={{ color: '#64748B', fontSize: 14 }}
+            style={{ color: '#64748B', fontSize: 14, display: 'flex', alignItems: 'center' }}
           >
             New
           </Button>
           <Button
             type="text"
-            style={{ color: '#64748B', fontSize: 14 }}
+            icon={<UploadOutlined />}
+            style={{ color: '#64748B', fontSize: 14, display: 'flex', alignItems: 'center' }}
           >
             Import
           </Button>
