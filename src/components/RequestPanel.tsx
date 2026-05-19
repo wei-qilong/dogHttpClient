@@ -232,20 +232,6 @@ function ParamsTab() {
 
   return (
     <div style={{ padding: '12px' }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        marginBottom: 8,
-        padding: '6px 10px',
-        background: '#F8FAFC',
-        borderRadius: 6
-      }}>
-        <span style={{ fontSize: 11, color: '#64748B', marginRight: 8 }}>Query Params</span>
-        <Tooltip title="Bulk Edit">
-          <EyeInvisibleOutlined style={{ color: '#94A3B8', fontSize: 11, cursor: 'pointer' }} />
-        </Tooltip>
-      </div>
-      
       <Table
         dataSource={params}
         columns={columns}

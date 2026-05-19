@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { 
-  CheckCircleOutlined, 
   ClockCircleOutlined, 
   DatabaseOutlined, 
   CopyOutlined, 
@@ -8,7 +7,7 @@ import {
   SearchOutlined,
   EyeOutlined
 } from '@ant-design/icons';
-import { Tabs, Tag, Button, Space, Empty, Table, Card, Tooltip, Radio } from 'antd';
+import { Tabs, Tag, Button, Space, Empty, Table, Tooltip, Radio } from 'antd';
 import { useAppStore } from '../store';
 
 const { TabPane } = Tabs;
@@ -142,7 +141,7 @@ export function ResponsePanel() {
       {/* Response Tabs - 参考图片风格 */}
       <Tabs 
         activeKey={responseTab} 
-        onChange={(key) => setResponseTab(key as 'headers' | 'body' | 'cookies' | 'tests')}
+        onChange={(key) => setResponseTab(key as 'headers' | 'body')}
         size="small"
         tabBarStyle={{ 
           padding: '0 16px',
@@ -242,50 +241,6 @@ export function ResponsePanel() {
           </div>
         </TabPane>
 
-        <TabPane 
-          tab={
-            <span style={{ fontSize: 13 }}>
-              Test Results
-              <Tag style={{ marginLeft: 4, fontSize: 10, background: '#ECFDF5', color: '#10B981', border: 'none' }}>
-                2/2
-              </Tag>
-            </span>
-          } 
-          key="tests"
-        >
-          <div style={{ padding: '16px' }}>
-            <Space direction="vertical" style={{ width: '100%' }} size={8}>
-              <Card 
-                size="small" 
-                style={{ 
-                  background: '#ECFDF5', 
-                  borderColor: '#A7F3D0',
-                  borderRadius: 6
-                }}
-                bodyStyle={{ padding: '10px 12px' }}
-              >
-                <Space>
-                  <CheckCircleOutlined style={{ color: '#10B981', fontSize: 14 }} />
-                  <span style={{ fontSize: 13, color: '#1E293B' }}>Status code is 200</span>
-                </Space>
-              </Card>
-              <Card 
-                size="small" 
-                style={{ 
-                  background: '#ECFDF5', 
-                  borderColor: '#A7F3D0',
-                  borderRadius: 6
-                }}
-                bodyStyle={{ padding: '10px 12px' }}
-              >
-                <Space>
-                  <CheckCircleOutlined style={{ color: '#10B981', fontSize: 14 }} />
-                  <span style={{ fontSize: 13, color: '#1E293B' }}>Response time is acceptable</span>
-                </Space>
-              </Card>
-            </Space>
-          </div>
-        </TabPane>
       </Tabs>
     </div>
   );
