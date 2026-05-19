@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Layout, Space, Button, Divider, Dropdown, Input, Tooltip } from 'antd';
 import {
   MenuFoldOutlined,
@@ -37,6 +38,55 @@ function App() {
   const { sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, isLoading, collections, currentCollectionId } = useAppStore();
 
   const currentCollection = collections.find(c => c.id === currentCollectionId);
+
+  // 面包屑编辑状态
+  const [editingCollection, setEditingCollection] = useState(false);
+  const [editingRequest, setEditingRequest] = useState(false);
+  const [editCollectionName, setEditCollectionName] = useState('');
+  const [editRequestName, setEditRequestName] = useState('');
+
+  // 开始编辑 Collection 名称
+  const startEditCollection = () => {
+    if (currentCollection) {
+      setEditCollectionName(currentCollection.name);
+      setEditingCollection(true);
+    }
+  };
+
+  // 开始编辑 Request 名称
+  const startEditRequest = () => {
+    setEditRequestName(currentRequest.name || '');
+    setEditingRequest(true);
+  };
+
+  // 保存 Collection 名称
+  const saveCollectionName = () => {
+    if (currentCollection && editCollectionName.trim()) {
+      useAppStore.setState(s => ({
+        collections: s.collections.map(c => 
+          c.id === currentCollection.id ? { ...c, name: editCollectionName.trim() } : c
+        )
+      }));
+    }
+    setEditingCollection(false);
+  };
+
+  // 保存 Request 名称
+  const saveRequestName = () => {
+    if (editRequestName.trim()) {
+      setCurrentRequest({ name: editRequestName.trim() });
+    }
+    setEditingRequest(false);
+  };
+
+  // 点击 Collection 定位到该 Collection
+  const handleCollectionClick = () => {
+    // 可以在侧边栏高亮显示对应的 collection
+    const element = document.querySelector(`[data-collection-id="${currentCollectionId}"]`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
 
   // 创建新请求
   const handleNewRequest = () => {
@@ -181,20 +231,61 @@ function App() {
               fontSize: 12,
               color: '#64748B'
             }}>
-              <span style={{
-                color: methodColors[currentRequest.method],
-                fontWeight: 600
-              }}>
-                {currentRequest.method}
-              </span>
-              {currentCollection && (
+              {/* Collection 名称 */}
+              {currentCollection ? (
                 <>
+                  {editingCollection ? (
+                    <Input
+                      size="small"
+                      value={editCollectionName}
+                      onChange={e => setEditCollectionName(e.target.value)}
+                      onPressEnter={saveCollectionName}
+                      onBlur={saveCollectionName}
+                      autoFocus
+                      style={{ width: 120, fontSize: 12 }}
+                    />
+                  ) : (
+                    <span
+                      onClick={handleCollectionClick}
+                      onDoubleClick={startEditCollection}
+                      style={{ 
+                        color: '#F59E0B', 
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        borderRadius: 4
+                      }}
+                    >
+                      {currentCollection.name}
+                    </span>
+                  )}
                   <span style={{ margin: '0 8px' }}>/</span>
-                  <span style={{ color: '#F59E0B', fontWeight: 500 }}>{currentCollection.name}</span>
                 </>
+              ) : null}
+              {/* Request 名称 */}
+              {editingRequest ? (
+                <Input
+                  size="small"
+                  value={editRequestName}
+                  onChange={e => setEditRequestName(e.target.value)}
+                  onPressEnter={saveRequestName}
+                  onBlur={saveRequestName}
+                  autoFocus
+                  style={{ width: 150, fontSize: 12 }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={startEditRequest}
+                  style={{ 
+                    color: '#1E293B',
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                    borderRadius: 4
+                  }}
+                >
+                  {currentRequest.name || 'Untitled Request'}
+                </span>
               )}
-              <span style={{ margin: '0 8px' }}>/</span>
-              <span style={{ color: '#1E293B' }}>{currentRequest.name || 'Untitled Request'}</span>
             </div>
 
             {/* URL 输入区 */}
