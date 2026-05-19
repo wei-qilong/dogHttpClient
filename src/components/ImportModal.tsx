@@ -34,7 +34,9 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     setTimeout(() => {
       const parsed = parseCurl(curlInput);
       
-      if (parsed && parsed.url) {
+      if (parsed && 'url' in parsed && parsed.url) {
+        const unsupported = ('unsupported' in parsed ? (parsed as { unsupported: string[] }).unsupported : []) as string[];
+        
         const newRequest: RequestConfig = {
           id: genId(),
           name: 'Imported Request',
@@ -52,9 +54,30 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
         };
 
         setCurrentRequest(newRequest);
-        message.success('Import successful!');
+        
+        // 显示警告（如果有不支持的选项）
+        if (unsupported.length > 0) {
+          message.warning({
+            content: (
+              <div>
+                <div style={{ fontWeight: 500, marginBottom: 4 }}>Imported with warnings:</div>
+                <div style={{ fontSize: 11, color: '#666' }}>
+                  {unsupported.map((opt: string, i: number) => (
+                    <div key={i}>• {opt}</div>
+                  ))}
+                </div>
+              </div>
+            ),
+            duration: 5,
+          });
+        } else {
+          message.success('Import successful!');
+        }
+        
         setCurlInput('');
         onClose();
+      } else if (parsed && 'error' in parsed) {
+        message.error(parsed.error);
       } else {
         message.error('Failed to parse cURL command. Please check the format.');
       }

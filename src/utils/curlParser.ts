@@ -22,7 +22,7 @@ interface CurlParseResult {
 const genId = () => Math.random().toString(36).substring(2, 10);
 
 // 解析 cURL 命令
-export const parseCurl = (curlCommand: string): CurlParseResult | null => {
+export const parseCurl = (curlCommand: string): CurlParseResult | { error: string; unsupported: string[] } | null => {
   try {
     // 预处理：合并多行，处理转义
     let cmd = curlCommand.trim();
@@ -48,11 +48,128 @@ export const parseCurl = (curlCommand: string): CurlParseResult | null => {
       urlEncoded: [],
     };
 
-    // ===== 1. 提取 URL (需要在处理所有选项之后) =====
-    // 临时存储所有匹配到的内容
-    let rawUrl = '';
+    // 记录不支持的选项
+    const unsupported: string[] = [];
+
+    // ===== 1. 检测不支持的选项 =====
+    // 输出相关
+    if (/\s(?:-o|--output)\s/.test(cmd) || /\s(?:-O|--remote-name)\s/.test(cmd)) {
+      unsupported.push('-o/--output, -O/--remote-name (output to file)');
+    }
+    if (/\s-I\s/.test(cmd) || /--head\b/.test(cmd)) {
+      unsupported.push('-I/--head (head request)');
+    }
+    if (/\s-i\s/.test(cmd) || /--include\b/.test(cmd)) {
+      unsupported.push('-i/--include (show headers)');
+    }
+    if (/\s-v\b/.test(cmd) || /--verbose\b/.test(cmd)) {
+      unsupported.push('-v/--verbose (verbose mode)');
+    }
+    if (/\s-s\b/.test(cmd) || /--silent\b/.test(cmd)) {
+      unsupported.push('-s/--silent (silent mode)');
+    }
     
+    // 连接相关
+    if (/--max-redirs\b/.test(cmd)) {
+      unsupported.push('--max-redirs (max redirects)');
+    }
+    if (/--max-time\b/.test(cmd)) {
+      unsupported.push('--max-time (max time)');
+    }
+    if (/--connect-timeout\b/.test(cmd)) {
+      unsupported.push('--connect-timeout (connection timeout)');
+    }
+    if (/\s-x\s/.test(cmd) || /--proxy\b/.test(cmd)) {
+      unsupported.push('-x/--proxy (proxy)');
+    }
+    
+    // SSL/TLS 相关
+    if (/\s-k\b/.test(cmd) || /--insecure\b/.test(cmd)) {
+      unsupported.push('-k/--insecure (skip SSL verify)');
+    }
+    if (/\s-E\b/.test(cmd) || /--cert\b/.test(cmd)) {
+      unsupported.push('-E/--cert (client certificate)');
+    }
+    if (/--cacert\b/.test(cmd) || /--capath\b/.test(cmd)) {
+      unsupported.push('--cacert/--capath (CA certificate)');
+    }
+    if (/--tlsv/.test(cmd)) {
+      unsupported.push('--tlsv1.x (TLS version)');
+    }
+    if (/--compressed\b/.test(cmd)) {
+      unsupported.push('--compressed (accept compressed)');
+    }
+    
+    // 上传下载
+    if (/\s-T\s/.test(cmd) || /--upload-file\b/.test(cmd)) {
+      unsupported.push('-T/--upload-file (upload file)');
+    }
+    if (/\s-G\b/.test(cmd) || /--get\b/.test(cmd)) {
+      unsupported.push('-G/--get (convert to GET)');
+    }
+    if (/\s-C\s/.test(cmd) || /--continue-at\b/.test(cmd)) {
+      unsupported.push('-C/--continue-at (resume download)');
+    }
+    if (/\s-f\b/.test(cmd) || /--fail\b/.test(cmd)) {
+      unsupported.push('-f/--fail (fail on error)');
+    }
+    
+    // 高级认证
+    if (/--ntlm\b/.test(cmd)) {
+      unsupported.push('--ntlm (NTLM auth)');
+    }
+    if (/--negotiate\b/.test(cmd)) {
+      unsupported.push('--negotiate (negotiate auth)');
+    }
+    if (/--digest\b/.test(cmd)) {
+      unsupported.push('--digest (digest auth)');
+    }
+    if (/--anyauth\b/.test(cmd)) {
+      unsupported.push('--anyauth (auto auth)');
+    }
+    if (/--aws-sigv4\b/.test(cmd)) {
+      unsupported.push('--aws-sigv4 (AWS signature)');
+    }
+    
+    // 其他
+    if (/-K\b/.test(cmd) || /--config\b/.test(cmd)) {
+      unsupported.push('-K/--config (config file)');
+    }
+    if (/--retry\b/.test(cmd)) {
+      unsupported.push('--retry (retry on failure)');
+    }
+    if (/--retry-delay\b/.test(cmd)) {
+      unsupported.push('--retry-delay (retry delay)');
+    }
+    if (/--abstract-unix-socket\b/.test(cmd)) {
+      unsupported.push('--abstract-unix-socket (unix socket)');
+    }
+    if (/--unix-socket\b/.test(cmd)) {
+      unsupported.push('--unix-socket (unix socket)');
+    }
+    if (/\s--next\s/.test(cmd)) {
+      unsupported.push('--next (multiple requests)');
+    }
+    if (/--parallel\b/.test(cmd)) {
+      unsupported.push('--parallel (parallel requests)');
+    }
+    if (/--rate\b/.test(cmd)) {
+      unsupported.push('--rate (rate limit)');
+    }
+    if (/--trace\b/.test(cmd) || /--trace-ascii\b/.test(cmd)) {
+      unsupported.push('--trace (debug trace)');
+    }
+    if (/--alt-svc\b/.test(cmd)) {
+      unsupported.push('--alt-svc (alternative svc)');
+    }
+    if (/--http[23]\b/.test(cmd)) {
+      unsupported.push('--http2/--http3 (HTTP version)');
+    }
+
     // ===== 2. 解析各种选项 =====
+    
+    // 临时存储 URL
+    let rawUrl = '';
     
     // --- Method: -X, --request ---
     const methodMatch = cmd.match(/(?:-X|--request)\s+['"]?(\w+)['"]?/i);
@@ -330,6 +447,11 @@ export const parseCurl = (curlCommand: string): CurlParseResult | null => {
 
     // ===== 5. 确保有默认值 =====
     if (!result.method) result.method = 'GET';
+
+    // 如果有不支持的选项，返回带有警告的结果
+    if (unsupported.length > 0) {
+      return { ...result, unsupported };
+    }
 
     return result;
   } catch (error) {
