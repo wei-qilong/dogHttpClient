@@ -74,7 +74,25 @@ function App() {
   // 保存 Request 名称
   const saveRequestName = () => {
     if (editRequestName.trim()) {
-      setCurrentRequest({ name: editRequestName.trim() });
+      const newName = editRequestName.trim();
+      // 更新当前 request
+      setCurrentRequest({ name: newName });
+      // 同步更新 collections 中的 request 名称
+      if (currentCollectionId) {
+        useAppStore.setState(s => ({
+          collections: s.collections.map(c => {
+            if (c.id === currentCollectionId) {
+              return {
+                ...c,
+                requests: c.requests.map(r => 
+                  r.id === currentRequest.id ? { ...r, name: newName } : r
+                )
+              };
+            }
+            return c;
+          })
+        }));
+      }
     }
     setEditingRequest(false);
   };
