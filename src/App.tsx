@@ -14,6 +14,7 @@ import { useAppStore } from './store';
 import { Sidebar, SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
+import { ImportModal } from './components/ImportModal';
 import type { HttpMethod, KeyValuePair } from './types';
 
 const { Header, Sider, Content } = Layout;
@@ -70,6 +71,7 @@ function App() {
   const [editingRequest, setEditingRequest] = useState(false);
   const [editCollectionName, setEditCollectionName] = useState('');
   const [editRequestName, setEditRequestName] = useState('');
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // 开始编辑 Collection 名称
   const startEditCollection = () => {
@@ -292,6 +294,7 @@ function App() {
           <Button
             type="text"
             icon={<UploadOutlined />}
+            onClick={() => setImportModalOpen(true)}
             style={{ color: '#64748B', fontSize: 14, display: 'flex', alignItems: 'center' }}
           >
             Import
@@ -515,6 +518,12 @@ function App() {
           </Content>
         </Layout>
       </Layout>
+
+      {/* Import Modal */}
+      <ImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+      />
     </Layout>
   );
 }
