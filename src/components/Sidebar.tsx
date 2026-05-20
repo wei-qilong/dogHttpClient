@@ -145,7 +145,7 @@ export function SidebarContent() {
 const SCRATCH_PAD_ID = '__scratch_pad__';
 
 function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNewCollection: setShowNewCollectionProp }: { showNewCollection: boolean; setShowNewCollection: (v: boolean) => void }) {
-  const { collections } = useAppStore();
+  const { collections, dirtyRequestIds } = useAppStore();
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollection, setShowNewCollection] = useState(false);
@@ -372,7 +372,10 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
                             onPressEnter={() => handleRenameRequest(collection.id, req.id)} onClick={e => e.stopPropagation()}
                             autoFocus style={{ fontSize: 11, flex: 1 }} />
                         ) : (
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.name}</span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {req.name}
+                            {dirtyRequestIds.has(req.id) && <span style={{ color: '#F59E0B', marginLeft: 4, fontWeight: 600 }}>*</span>}
+                          </span>
                         )}
                         <Space size={0} onClick={e => e.stopPropagation()}>
                           {editingReqId === req.id ? (

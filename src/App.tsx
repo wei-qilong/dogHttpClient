@@ -88,12 +88,27 @@ const methodItems = methods.map(m => ({
 }));
 
 function App() {
-  const { sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, isLoading, collections, currentCollectionId, initFromStorage } = useAppStore();
+  const { sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, isLoading, collections, currentCollectionId, initFromStorage, dirtyRequestIds } = useAppStore();
 
   // 启动时从本地存储加载数据
   useEffect(() => {
     initFromStorage();
   }, [initFromStorage]);
+
+  // Ctrl+S 保存所有脏请求
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const { saveAllDirty, dirtyRequestIds } = useAppStore.getState();
+        if (dirtyRequestIds.size > 0) {
+          saveAllDirty();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const currentCollection = collections.find(c => c.id === currentCollectionId);
 
@@ -228,6 +243,8 @@ function App() {
       testsScript: '',
     };
     useAppStore.getState().setCurrentRequest(newRequest, null);
+    // 新请求标记为脏
+    useAppStore.getState().markDirty(newRequest.id);
     // 清空响应
     useAppStore.setState({ currentResponse: null });
   };
@@ -449,6 +466,7 @@ function App() {
                   }}
                 >
                   {currentRequest.name || 'Untitled Request'}
+                  {dirtyRequestIds.has(currentRequest.id) && <span style={{ color: '#F59E0B', marginLeft: 4, fontWeight: 600 }}>*</span>}
                 </span>
               )}
             </div>

@@ -32,6 +32,9 @@ interface AppState {
   // Storage
   isInitialized: boolean;
   
+  // Dirty tracking: 记录未保存的请求 ID
+  dirtyRequestIds: Set<string>;
+  
   // UI State
   sidebarVisible: boolean;
   sidebarActiveTab: 'collections' | 'environments' | 'history';
@@ -42,6 +45,10 @@ interface AppState {
   // Actions
   initFromStorage: () => Promise<void>;
   persistToStorage: () => void;
+  markDirty: (requestId: string) => void;
+  markClean: (requestId: string) => void;
+  isRequestDirty: (requestId: string) => boolean;
+  saveAllDirty: () => void;
   setCurrentRequest: (request: Partial<RequestConfig>, collectionId?: string | null) => void;
   setCurrentResponse: (response: ResponseData | null) => void;
   setIsLoading: (loading: boolean) => void;
@@ -98,6 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentEnvironmentId: 'dev',
   history: [],
   isInitialized: false,
+  dirtyRequestIds: new Set<string>(),
   sidebarVisible: true,
   sidebarActiveTab: 'collections',
   currentCollectionId: null,
@@ -136,6 +144,57 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   
+  // 标记请求为脏（未保存）
+  markDirty: (requestId) => set((state) => {
+    const next = new Set(state.dirtyRequestIds);
+    next.add(requestId);
+    return { dirtyRequestIds: next };
+  }),
+  
+  // 标记请求为干净（已保存）
+  markClean: (requestId) => set((state) => {
+    const next = new Set(state.dirtyRequestIds);
+    next.delete(requestId);
+    return { dirtyRequestIds: next };
+  }),
+  
+  // 检查请求是否脏
+  isRequestDirty: (requestId) => get().dirtyRequestIds.has(requestId),
+  
+  // 保存所有脏请求：将当前请求写回 collection，然后持久化
+  saveAllDirty: () => {
+    const state = get();
+    if (state.dirtyRequestIds.size === 0) return;
+    
+    const updatedCollections = state.collections.map(col => ({
+      ...col,
+      requests: col.requests.map(req => {
+        if (state.dirtyRequestIds.has(req.id) && req.id === state.currentRequest.id) {
+          // 当前正在编辑的脏请求，用最新数据覆盖
+          return { ...state.currentRequest };
+        }
+        return req;
+      }),
+    }));
+    
+    // 清除所有脏标记
+    set({
+      collections: updatedCollections,
+      dirtyRequestIds: new Set<string>(),
+    });
+    
+    // 立即持久化（不防抖）
+    const data: AppData = {
+      version: '1.0.0',
+      collections: updatedCollections,
+      history: state.history,
+      settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
+    };
+    debouncedSave(data, 0).catch(err => {
+      console.error('[Storage] Save failed:', err);
+    });
+  },
+  
   setCurrentRequest: (request, collectionId) => set((state) => {
     const newRequest: RequestConfig = {
       id: request.id ?? state.currentRequest.id,
@@ -153,9 +212,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       preRequestScript: request.preRequestScript ?? state.currentRequest.preRequestScript,
       testsScript: request.testsScript ?? state.currentRequest.testsScript,
     };
+    
+    // 如果是编辑现有请求（id 未变），标记为脏
+    const requestId = newRequest.id;
+    const isEditing = requestId === state.currentRequest.id;
+    
     return {
       currentRequest: newRequest,
       ...(collectionId !== undefined && { currentCollectionId: collectionId }),
+      ...(isEditing && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
     };
   }),
   
