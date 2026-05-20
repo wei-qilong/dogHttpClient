@@ -21,53 +21,6 @@ const { Header } = Layout;
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
-// 解析URL中的query参数（支持渐进式解析）
-const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[] } => {
-  try {
-    const questionMarkIndex = url.indexOf('?');
-    if (questionMarkIndex === -1) {
-      return { cleanUrl: url, params: [] };
-    }
-    
-    const queryString = url.substring(questionMarkIndex + 1);
-    if (!queryString) {
-      return { cleanUrl: url, params: [] };
-    }
-    
-    const params: KeyValuePair[] = [];
-    const pairs = queryString.split('&');
-    
-    for (const pair of pairs) {
-      if (pair === '') continue;
-      
-      const equalIndex = pair.indexOf('=');
-      if (equalIndex === -1) {
-        params.push({
-          id: Math.random().toString(36).substring(2, 10),
-          key: decodeURIComponent(pair),
-          value: '',
-          description: '',
-          enabled: true
-        });
-      } else {
-        const key = pair.substring(0, equalIndex);
-        const value = pair.substring(equalIndex + 1);
-        params.push({
-          id: Math.random().toString(36).substring(2, 10),
-          key: decodeURIComponent(key),
-          value: decodeURIComponent(value),
-          description: '',
-          enabled: true
-        });
-      }
-    }
-    
-    return { cleanUrl: url.substring(0, questionMarkIndex), params };
-  } catch {
-    return { cleanUrl: url, params: [] };
-  }
-};
-
 // 将params数组转为URL query字符串
 const paramsToQueryString = (params: KeyValuePair[]): string => {
   const enabled = params.filter(p => p.enabled && p.key);
@@ -241,52 +194,48 @@ function App() {
     }));
   };
 
-  // 处理URL变化 - 解析query参数到params
+  // 处理URL变化 - 始终解析已完成参数到params
   const handleUrlChange = (newUrl: string) => {
     const questionMarkIndex = newUrl.indexOf('?');
     
     if (questionMarkIndex === -1) {
-      // 没有?，直接更新URL，清空params
+      // 没有?，清空params
       setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
       return;
     }
     
-    const baseUrl = newUrl.substring(0, questionMarkIndex);
     const queryString = newUrl.substring(questionMarkIndex + 1);
     
     if (!queryString) {
-      // 只有 ?，保留URL不变
-      setCurrentRequest({ url: newUrl }, undefined, true);
+      // 只有 ?，保留URL，清空params
+      setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
       return;
     }
     
-    // 检查是否需要解析
-    // 如果queryString中任何一个key后面没有value（=后面为空），就保留URL让用户继续输入
+    // 始终解析所有参数（包括不完整的）
     const pairs = queryString.split('&');
-    let hasIncomplete = false;
+    const params: KeyValuePair[] = [];
+    
     for (const pair of pairs) {
+      if (pair === '') continue;
       const equalIndex = pair.indexOf('=');
       if (equalIndex === -1) {
-        // 完全没有 =，用户正在输入key，如 ?xx
-        hasIncomplete = true;
-        break;
-      }
-      if (equalIndex === pair.length - 1) {
-        // = 在最后，如 ?xx=，用户正在输入value
-        hasIncomplete = true;
-        break;
+        // 没有 =，如 ?xx → key=xx, value=空
+        params.push({ id: Math.random().toString(36).substring(2, 10), key: decodeURIComponent(pair), value: '', description: '', enabled: true });
+      } else if (equalIndex === pair.length - 1) {
+        // = 在最后，如 ?xx= → key=xx, value=空
+        const key = pair.substring(0, equalIndex);
+        params.push({ id: Math.random().toString(36).substring(2, 10), key: decodeURIComponent(key), value: '', description: '', enabled: true });
+      } else {
+        // 完整参数，如 ?xx=a
+        const key = pair.substring(0, equalIndex);
+        const value = pair.substring(equalIndex + 1);
+        params.push({ id: Math.random().toString(36).substring(2, 10), key: decodeURIComponent(key), value: decodeURIComponent(value), description: '', enabled: true });
       }
     }
     
-    if (hasIncomplete) {
-      // 有未完成的参数，保留URL不变（包含?和未完成的参数），params不变
-      setCurrentRequest({ url: newUrl }, undefined, true);
-      return;
-    }
-    
-    // 所有参数都完整，解析参数，更新URL为去掉参数的版本
-    const { params } = parseUrlParams(newUrl);
-    setCurrentRequest({ url: baseUrl, params }, undefined, true);
+    // 地址栏始终保留完整URL（含?和参数），params更新
+    setCurrentRequest({ url: newUrl, params }, undefined, true);
   };
 
   // 处理params变化 - 反向同步到URL
