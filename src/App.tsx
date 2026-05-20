@@ -17,7 +17,7 @@ import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
 import type { HttpMethod, KeyValuePair } from './types';
 
-const { Header } = Layout;
+const { Header, Sider, Content } = Layout;
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
@@ -298,25 +298,23 @@ function App() {
         </Space>
       </Header>
 
-      <Layout style={{ background: '#F8FAFC', display: 'flex', flexDirection: 'row' }}>
+      <Layout style={{ background: '#F8FAFC' }}>
         {/* Sidebar */}
         {sidebarVisible && (
-          <div
+          <Sider
+            width={280}
             style={{
-              width: 280,
-              flexShrink: 0,
               background: '#FFFFFF',
               borderRight: '1px solid #E2E8F0',
-              overflow: 'auto',
-              height: '100%'
+              overflow: 'auto'
             }}
           >
             <SidebarContent />
-          </div>
+          </Sider>
         )}
 
         {/* Main Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Content style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Request Section */}
           <div style={{ 
             flex: 1, 
@@ -477,7 +475,7 @@ function App() {
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <ResponsePanel />
           </div>
-        </div>
+        </Content>
       </Layout>
 
       <ImportModal
