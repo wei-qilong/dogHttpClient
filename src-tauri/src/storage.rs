@@ -24,6 +24,8 @@ pub struct AppData {
 pub struct Collection {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
     pub requests: Vec<RequestConfig>,
     pub folders: Vec<Folder>,
 }
@@ -33,6 +35,8 @@ pub struct Folder {
     pub id: String,
     pub name: String,
     pub requests: Vec<RequestConfig>,
+    #[serde(default)]
+    pub folders: Vec<Folder>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -43,13 +47,30 @@ pub struct RequestConfig {
     pub url: String,
     pub headers: Vec<KeyValuePair>,
     pub params: Vec<KeyValuePair>,
+    #[serde(rename = "bodyType")]
     pub body_type: String,
+    #[serde(rename = "bodyContent")]
     pub body_content: String,
+    #[serde(rename = "bodyRawType")]
     pub body_raw_type: String,
+    #[serde(rename = "formData", default)]
     pub form_data: Vec<FormDataItem>,
+    #[serde(rename = "urlEncoded", default)]
     pub url_encoded: Vec<KeyValuePair>,
+    #[serde(rename = "binaryFile")]
+    pub binary_file: Option<BinaryFile>,
+    #[serde(rename = "preRequestScript", default)]
     pub pre_request_script: String,
+    #[serde(rename = "testsScript", default)]
     pub tests_script: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BinaryFile {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub content_type: String,
+    pub data: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -57,8 +78,13 @@ pub struct KeyValuePair {
     pub id: String,
     pub key: String,
     pub value: String,
-    pub description: String,
+    #[serde(default)]
+    pub description: Option<String>,
     pub enabled: bool,
+    #[serde(rename = "type")]
+    pub item_type: Option<String>,
+    #[serde(rename = "fileName")]
+    pub file_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -80,7 +106,21 @@ pub struct HistoryItem {
     pub id: String,
     pub timestamp: i64,
     pub request: RequestConfig,
+    #[serde(rename = "responseStatus")]
     pub response_status: u16,
+    #[serde(flatten)]
+    pub response: Option<ResponseData>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResponseData {
+    pub status: u16,
+    #[serde(rename = "statusText")]
+    pub status_text: String,
+    pub headers: HashMap<String, String>,
+    pub body: String,
+    pub time: u64,
+    pub size: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
@@ -88,7 +128,9 @@ pub struct Settings {
     pub theme: String,
     pub language: String,
     pub timeout: u32,
+    #[serde(rename = "maxHistory")]
     pub max_history: u32,
+    #[serde(rename = "autoSave")]
     pub auto_save: bool,
 }
 
@@ -130,8 +172,9 @@ impl StorageManager {
             return Ok(AppData {
                 version: "1.0.0".to_string(),
                 collections: vec![Collection {
-                    id: "scratch-pad".to_string(),
+                    id: "__default__".to_string(),
                     name: "default".to_string(),
+                    description: None,
                     requests: vec![],
                     folders: vec![],
                 }],
