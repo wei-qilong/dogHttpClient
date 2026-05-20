@@ -92,12 +92,13 @@ pub struct FormDataItem {
     pub id: String,
     pub key: String,
     pub value: String,
-    #[serde(rename = "fileName")]
+    #[serde(rename = "fileName", default)]
     pub file_name: Option<String>,
-    #[serde(rename = "contentType")]
+    #[serde(rename = "contentType", default)]
     pub content_type: Option<String>,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default)]
     pub item_type: String,
+    #[serde(default)]
     pub enabled: bool,
 }
 
@@ -106,9 +107,6 @@ pub struct HistoryItem {
     pub id: String,
     pub timestamp: i64,
     pub request: RequestConfig,
-    #[serde(rename = "responseStatus")]
-    pub response_status: u16,
-    #[serde(flatten)]
     pub response: Option<ResponseData>,
 }
 

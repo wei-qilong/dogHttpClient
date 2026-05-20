@@ -41,7 +41,7 @@ export async function loadData(): Promise<AppData> {
     return {
       version: '1.0.0',
       collections: [{
-        id: 'scratch-pad',
+        id: '__default__',
         name: 'default',
         requests: [],
         folders: [],

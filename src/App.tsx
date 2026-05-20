@@ -246,29 +246,25 @@ function App() {
     const questionMarkIndex = newUrl.indexOf('?');
     
     if (questionMarkIndex === -1) {
-      // 没有?，直接更新URL，清空params
-      setCurrentRequest({ url: newUrl, params: [] });
+      setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
       return;
     }
     
     const baseUrl = newUrl.substring(0, questionMarkIndex);
     const queryString = newUrl.substring(questionMarkIndex + 1);
     
-    // 正在输入中（如 ?x，没有=），保留URL不变，不解析params
-    // 只有完整的 key=value 或 key& 才解析
-    const isTyping = queryString.length > 0 && 
-                     !queryString.includes('=') && 
-                     !queryString.endsWith('&');
-    
-    if (isTyping && !queryString.includes('&')) {
-      // 单个key正在输入中，如 ?x
-      setCurrentRequest({ url: newUrl });
+    if (!queryString) {
+      setCurrentRequest({ url: newUrl }, undefined, true);
       return;
     }
     
-    // 解析参数
+    if (!queryString.includes('=') && !queryString.includes('&')) {
+      setCurrentRequest({ url: newUrl }, undefined, true);
+      return;
+    }
+    
     const { params } = parseUrlParams(newUrl);
-    setCurrentRequest({ url: baseUrl, params });
+    setCurrentRequest({ url: baseUrl, params }, undefined, true);
   };
 
   // 处理params变化 - 反向同步到URL
@@ -277,7 +273,7 @@ function App() {
     const queryString = paramsToQueryString(newParams);
     const newUrl = baseUrl + queryString;
     
-    setCurrentRequest({ url: newUrl, params: newParams });
+    setCurrentRequest({ url: newUrl, params: newParams }, undefined, true);
   };
 
   const methodItems = methods.map(m => ({

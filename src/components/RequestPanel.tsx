@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons';
 import { 
   Button, 
@@ -144,19 +144,22 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
   // 确保 params 数组存在，如果不存在则初始化为空数组
   const params = currentRequest.params || [];
   
+  // 稳定的空行 ID，避免每次渲染重新生成导致输入框失焦
+  const emptyRowId = useMemo(() => generateId(), []);
+  
   // 显示用的数据（添加空行用于输入）
   const displayParams = params.length > 0 
-    ? [...params, { id: generateId(), key: '', value: '', description: '', enabled: true }]
-    : [{ id: generateId(), key: '', value: '', description: '', enabled: true }];
+    ? [...params, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
+    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
 
   const updateParams = (newParams: KeyValuePair[]) => {
     // 过滤掉空行（key 和 value 都为空）
     const validParams = newParams.filter(p => p.key !== '' || p.value !== '');
-    // 先更新 store
-    setCurrentRequest({ params: validParams });
-    // 如果有 onParamsChange，调用它同步到 URL
+    // 通过 onParamsChange 统一更新 params 和 URL，避免两次 store 更新冲突
     if (onParamsChange) {
       onParamsChange(validParams);
+    } else {
+      setCurrentRequest({ params: validParams });
     }
   };
 
@@ -272,9 +275,10 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
 function HeadersTab() {
   const { currentRequest, setCurrentRequest } = useAppStore();
   const headers = currentRequest.headers || [];
+  const emptyRowId = useMemo(() => generateId(), []);
   const displayHeaders = headers.length > 0 
-    ? [...headers, { id: generateId(), key: '', value: '', description: '', enabled: true }]
-    : [{ id: generateId(), key: '', value: '', description: '', enabled: true }];
+    ? [...headers, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
+    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
 
   const updateHeaders = (newHeaders: KeyValuePair[]) => {
     const validHeaders = newHeaders.filter(p => p.key !== '' || p.value !== '');
