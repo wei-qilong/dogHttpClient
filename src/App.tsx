@@ -111,24 +111,23 @@ function App() {
       prevParamsRef.current = currParams;
       
       const enabledParams = currParams.filter(p => p.enabled && p.key);
-      if (!currentRequest.url || !currentRequest.url.includes('?')) {
-        // URL 没有 query 参数，不处理
-        return;
-      }
       
-      try {
-        const urlObj = new URL(currentRequest.url);
+      // 从当前 URL 中提取基础 URL（去掉 query 部分）
+      const baseUrl = currentRequest.url.split('?')[0] || '';
+      
+      if (enabledParams.length > 0) {
         const queryString = enabledParams
           .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
           .join('&');
-        
-        // 只在有变化时更新
-        if (urlObj.search.slice(1) !== queryString) {
-          urlObj.search = queryString;
-          setCurrentRequest({ url: urlObj.toString() });
+        const newUrl = `${baseUrl}?${queryString}`;
+        if (newUrl !== currentRequest.url) {
+          setCurrentRequest({ url: newUrl });
         }
-      } catch {
-        // 非合法URL，忽略
+      } else {
+        // 没有参数时，URL 不应该有 ?
+        if (currentRequest.url.includes('?')) {
+          setCurrentRequest({ url: baseUrl });
+        }
       }
     }
   }, [currentRequest.params, currentRequest.url, setCurrentRequest]);
@@ -468,11 +467,27 @@ function App() {
                 value={currentRequest.url}
                 onChange={(e) => {
                   const newUrl = e.target.value;
-                  // 如果URL中有query参数，自动填充到params
-                  if (newUrl.includes('?')) {
-                    const { cleanUrl, params } = parseUrlParams(newUrl);
-                    if (params.length > 0) {
-                      setCurrentRequest({ url: cleanUrl, params });
+                  // 检查 URL 中是否有 query 参数
+                  const questionMarkIndex = newUrl.indexOf('?');
+                  if (questionMarkIndex !== -1) {
+                    const baseUrl = newUrl.substring(0, questionMarkIndex);
+                    const queryString = newUrl.substring(questionMarkIndex + 1);
+                    
+                    if (queryString.trim()) {
+                      // 有参数，解析并同步到 params
+                      const { params } = parseUrlParams(newUrl);
+                      // 保留已有 params 的 id，避免闪烁
+                      const mergedParams = params.map(newParam => {
+                        const existing = currentRequest.params.find(
+                          p => p.key === newParam.key && p.enabled
+                        );
+                        return existing ? { ...existing, value: newParam.value } : newParam;
+                      });
+                      setCurrentRequest({ url: baseUrl, params: mergedParams });
+                      return;
+                    } else {
+                      // 只有 ? 没有参数，清理 URL 中的 ?
+                      setCurrentRequest({ url: baseUrl });
                       return;
                     }
                   }
