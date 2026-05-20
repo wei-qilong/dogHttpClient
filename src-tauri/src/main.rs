@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -74,7 +75,7 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
         for item in form_data {
             if item.is_file {
                 // Decode base64 content
-                let file_content = base64::decode(&item.value)
+                let file_content = general_purpose::STANDARD.decode(&item.value)
                     .map_err(|e| HttpError {
                         message: format!("Failed to decode file content: {}", e),
                     })?;
