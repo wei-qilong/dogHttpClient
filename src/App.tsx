@@ -24,23 +24,36 @@ const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 
 // 解析URL中的query参数
 const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[] } => {
   try {
-    const urlObj = new URL(url);
-    const searchParams = urlObj.searchParams;
+    // 处理只有 ? 或 ? 后面没有内容的情况
+    const questionMarkIndex = url.indexOf('?');
+    if (questionMarkIndex === -1) {
+      return { cleanUrl: url, params: [] };
+    }
+    
+    const queryString = url.substring(questionMarkIndex + 1);
+    // 如果没有参数，直接返回
+    if (!queryString || queryString.trim() === '') {
+      return { cleanUrl: url.substring(0, questionMarkIndex), params: [] };
+    }
+    
+    // 使用 URLSearchParams 解析参数
+    const searchParams = new URLSearchParams(queryString);
     const params: KeyValuePair[] = [];
     
     searchParams.forEach((value, key) => {
-      params.push({
-        id: Math.random().toString(36).substring(2, 10),
-        key,
-        value,
-        description: '',
-        enabled: true
-      });
+      if (key) { // 只添加有key的参数
+        params.push({
+          id: Math.random().toString(36).substring(2, 10),
+          key,
+          value,
+          description: '',
+          enabled: true
+        });
+      }
     });
     
-    // 清除URL中的query字符串
-    urlObj.search = '';
-    return { cleanUrl: urlObj.toString(), params };
+    // 返回清除query后的URL
+    return { cleanUrl: url.substring(0, questionMarkIndex), params };
   } catch {
     return { cleanUrl: url, params: [] };
   }

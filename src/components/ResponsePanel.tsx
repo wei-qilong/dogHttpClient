@@ -57,8 +57,56 @@ export function ResponsePanel() {
     return contentType;
   };
 
+  // 从 Content-Disposition 解析文件名
+  const getFilenameFromDisposition = () => {
+    const disposition = currentResponse.headers?.['Content-Disposition'] || 
+                       currentResponse.headers?.['content-disposition'] || '';
+    
+    // 尝试匹配 filename="xxx" 或 filename=xxx
+    const match = disposition.match(/filename[^;=\n]*=(["']?)([^"'\n]*)\1/);
+    if (match && match[2]) {
+      return match[2];
+    }
+    return null;
+  };
+
   // 根据 Content-Type 获取文件扩展名和 MIME 类型
   const getFileInfo = () => {
+    // 优先从 Content-Disposition 获取文件名
+    const dispositionFilename = getFilenameFromDisposition();
+    if (dispositionFilename) {
+      const ext = dispositionFilename.split('.').pop()?.toLowerCase() || '';
+      // 根据扩展名返回对应的 mime 类型
+      const mimeMap: Record<string, string> = {
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls': 'application/vnd.ms-excel',
+        'csv': 'text/csv',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc': 'application/msword',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pdf': 'application/pdf',
+        'zip': 'application/zip',
+        'json': 'application/json',
+        'xml': 'application/xml',
+        'txt': 'text/plain',
+        'html': 'text/html',
+        'js': 'application/javascript',
+        'css': 'text/css',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'svg': 'image/svg+xml',
+        'webp': 'image/webp',
+        'mp4': 'video/mp4',
+        'mp3': 'audio/mpeg',
+      };
+      if (mimeMap[ext]) {
+        return { ext, mime: mimeMap[ext] };
+      }
+    }
+
     const contentType = getContentType().toLowerCase();
     // 去掉 charset 等参数，只保留主类型
     const mimeType = contentType.split(';')[0].trim();
