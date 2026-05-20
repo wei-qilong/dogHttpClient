@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layout, Space, Button, Divider, Dropdown, Input, Tooltip } from 'antd';
+import { Layout, Space, Button, Dropdown, Input, Tooltip } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -11,7 +11,7 @@ import {
   UploadOutlined
 } from '@ant-design/icons';
 import { useAppStore } from './store';
-import { Sidebar, SidebarContent } from './components/Sidebar';
+import { SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
@@ -30,21 +30,18 @@ const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[]
     }
     
     const queryString = url.substring(questionMarkIndex + 1);
-    // 如果没有参数，返回带?的URL，让用户继续输入
     if (!queryString) {
       return { cleanUrl: url, params: [] };
     }
     
     const params: KeyValuePair[] = [];
-    // 按 & 分割参数
     const pairs = queryString.split('&');
     
     for (const pair of pairs) {
-      if (pair === '') continue; // 跳过空（如末尾的&）
+      if (pair === '') continue;
       
       const equalIndex = pair.indexOf('=');
       if (equalIndex === -1) {
-        // 没有 =，整个作为 key，value 为空
         params.push({
           id: Math.random().toString(36).substring(2, 10),
           key: decodeURIComponent(pair),
@@ -53,7 +50,6 @@ const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[]
           enabled: true
         });
       } else {
-        // 有 =，分割 key 和 value
         const key = pair.substring(0, equalIndex);
         const value = pair.substring(equalIndex + 1);
         params.push({
@@ -72,7 +68,14 @@ const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[]
   }
 };
 
-const methodColors: Record<HttpMethod, string> = {
+// 将params数组转为URL query字符串
+const paramsToQueryString = (params: KeyValuePair[]): string => {
+  const enabled = params.filter(p => p.enabled && p.key);
+  if (enabled.length === 0) return '';
+  return '?' + enabled.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+};
+
+const methodColors: Record<string, string> = {
   GET: '#10B981',
   POST: '#F59E0B',
   PUT: '#3B82F6',
@@ -82,13 +85,11 @@ const methodColors: Record<HttpMethod, string> = {
   OPTIONS: '#6B7280',
 };
 
-const methodItems = methods.map(m => ({
-  key: m,
-  label: <span style={{ color: methodColors[m], fontWeight: 600 }}>{m}</span>,
-}));
-
 function App() {
-  const { sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, isLoading, collections, currentCollectionId, initFromStorage, dirtyRequestIds } = useAppStore();
+  const { 
+    sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, 
+    isLoading, collections, currentCollectionId, initFromStorage, dirtyRequestIds 
+  } = useAppStore();
 
   // 启动时从本地存储加载数据
   useEffect(() => {
@@ -133,35 +134,6 @@ function App() {
     setEditingRequest(true);
   };
 
-  // 监听 params 变化，同步更新 URL（双向绑定 - Params → URL）
-  const prevParamsRef = { current: currentRequest.params };
-  useEffect(() => {
-    const prevParams = prevParamsRef.current;
-    const currParams = currentRequest.params;
-    
-    if (prevParams !== currParams) {
-      prevParamsRef.current = currParams;
-      
-      const enabledParams = currParams.filter(p => p.enabled && p.key);
-      const baseUrl = currentRequest.url.split('?')[0] || '';
-      
-      if (enabledParams.length > 0) {
-        const queryString = enabledParams
-          .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-          .join('&');
-        const newUrl = `${baseUrl}?${queryString}`;
-        if (newUrl !== currentRequest.url) {
-          // skipDirty=true 避免双向绑定循环标记脏
-          setCurrentRequest({ url: newUrl }, undefined, true);
-        }
-      } else {
-        if (currentRequest.url.includes('?')) {
-          setCurrentRequest({ url: baseUrl }, undefined, true);
-        }
-      }
-    }
-  }, [currentRequest.params, currentRequest.url, setCurrentRequest]);
-
   // 保存 Collection 名称
   const saveCollectionName = () => {
     if (currentCollection && editCollectionName.trim()) {
@@ -178,38 +150,21 @@ function App() {
   const saveRequestName = () => {
     if (editRequestName.trim()) {
       const newName = editRequestName.trim();
-      // 更新当前 request
       setCurrentRequest({ name: newName });
-      // 同步更新 collections 中的 request 名称
       if (currentCollectionId) {
         useAppStore.setState(s => ({
-          collections: s.collections.map(c => {
-            if (c.id === currentCollectionId) {
-              return {
-                ...c,
-                requests: c.requests.map(r => 
-                  r.id === currentRequest.id ? { ...r, name: newName } : r
-                )
-              };
-            }
-            return c;
-          })
+          collections: s.collections.map(c => 
+            c.id === currentCollectionId 
+              ? { ...c, requests: c.requests.map(r => r.id === currentRequest.id ? { ...r, name: newName } : r) }
+              : c
+          )
         }));
       }
     }
     setEditingRequest(false);
   };
 
-  // 点击 Collection 定位到该 Collection
-  const handleCollectionClick = () => {
-    // 可以在侧边栏高亮显示对应的 collection
-    const element = document.querySelector(`[data-collection-id="${currentCollectionId}"]`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  };
-
-  // 生成唯一的 Request 名称（跨所有 collections）
+  // 生成唯一的请求名称
   const generateRequestName = () => {
     const allRequests = collections.flatMap(c => c.requests);
     const existingNames = allRequests.map(r => r.name);
@@ -240,9 +195,7 @@ function App() {
       testsScript: '',
     };
     useAppStore.getState().setCurrentRequest(newRequest, null);
-    // 新请求标记为脏
     useAppStore.getState().markDirty(newRequest.id);
-    // 清空响应
     useAppStore.setState({ currentResponse: null });
   };
 
@@ -255,7 +208,6 @@ function App() {
     const state = useAppStore.getState();
     const updatedRequest = { ...state.currentRequest };
     
-    // 查找请求是否已在某个 collection 中
     let found = false;
     const updatedCollections = state.collections.map(col => {
       const existingIndex = col.requests.findIndex(r => r.id === updatedRequest.id);
@@ -272,7 +224,6 @@ function App() {
     let targetColId = state.currentCollectionId;
     
     if (!found) {
-      // 请求不在任何 collection 中，添加到 default
       finalCollections = updatedCollections.map(col => {
         if (col.name === 'default') {
           return { ...col, requests: [...col.requests, updatedRequest] };
@@ -290,93 +241,102 @@ function App() {
     }));
   };
 
+  // 处理URL变化 - 解析query参数到params
+  const handleUrlChange = (newUrl: string) => {
+    const questionMarkIndex = newUrl.indexOf('?');
+    
+    if (questionMarkIndex === -1) {
+      // 没有?，直接更新URL，清空params
+      setCurrentRequest({ url: newUrl, params: [] });
+      return;
+    }
+    
+    const baseUrl = newUrl.substring(0, questionMarkIndex);
+    const queryString = newUrl.substring(questionMarkIndex + 1);
+    
+    // 正在输入中（如 ?x，没有=），保留URL不变，不解析params
+    // 只有完整的 key=value 或 key& 才解析
+    const isTyping = queryString.length > 0 && 
+                     !queryString.includes('=') && 
+                     !queryString.endsWith('&');
+    
+    if (isTyping && !queryString.includes('&')) {
+      // 单个key正在输入中，如 ?x
+      setCurrentRequest({ url: newUrl });
+      return;
+    }
+    
+    // 解析参数
+    const { params } = parseUrlParams(newUrl);
+    setCurrentRequest({ url: baseUrl, params });
+  };
+
+  // 处理params变化 - 反向同步到URL
+  const handleParamsChange = (newParams: KeyValuePair[]) => {
+    const baseUrl = currentRequest.url.split('?')[0] || '';
+    const queryString = paramsToQueryString(newParams);
+    const newUrl = baseUrl + queryString;
+    
+    setCurrentRequest({ url: newUrl, params: newParams });
+  };
+
+  const methodItems = methods.map(m => ({
+    key: m,
+    label: <span style={{ color: methodColors[m], fontWeight: 600 }}>{m}</span>,
+  }));
+
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden', background: '#F8FAFC' }}>
-      {/* 顶部栏 - 简洁风格 */}
-      <Header
-        style={{
-          padding: '0 16px',
-          background: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: 48,
-          lineHeight: '48px',
-          borderBottom: '1px solid #E2E8F0',
-          boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.03)'
-        }}
-      >
-        <Space size={16}>
-          <Button
-            type="text"
-            icon={sidebarVisible ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-            onClick={toggleSidebar}
-            style={{ color: '#64748B', fontSize: 16 }}
+      {/* Header */}
+      <Header style={{ 
+        background: '#FFFFFF', 
+        borderBottom: '1px solid #E2E8F0',
+        padding: '0 16px',
+        height: 48,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <Space size={8} align="center">
+          <img 
+            src="/icon.png" 
+            alt="dogHttpClient" 
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              objectFit: 'cover',
+              display: 'block'
+            }}
           />
-          <Space size={8} align="center">
-            <img 
-              src="/icon.png" 
-              alt="dogHttpClient" 
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 6,
-                objectFit: 'cover',
-                display: 'block'
-              }}
-            />
-            <span style={{ color: '#1E293B', fontWeight: 600, fontSize: 16, lineHeight: '24px' }}>dogHttpClient</span>
-          </Space>
+          <span style={{ color: '#1E293B', fontWeight: 600, fontSize: 16, lineHeight: '24px' }}>dogHttpClient</span>
+        </Space>
 
-          <Divider type="vertical" style={{ height: 24, margin: '0 8px' }} />
-
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            onClick={handleNewRequest}
-            style={{ color: '#64748B', fontSize: 14, display: 'flex', alignItems: 'center' }}
-          >
-            New
-          </Button>
-          <Button
-            type="text"
+        <Space>
+          <Button 
+            type="text" 
             icon={<UploadOutlined />}
             onClick={() => setImportModalOpen(true)}
-            style={{ color: '#64748B', fontSize: 14, display: 'flex', alignItems: 'center' }}
+            style={{ color: '#64748B' }}
           >
             Import
           </Button>
-        </Space>
-
-        <Space size={12}>
-          <Button
-            type="text"
+          <Button 
+            type="text" 
             icon={<SettingOutlined />}
-            style={{ color: '#64748B', fontSize: 16 }}
-          />
+            style={{ color: '#64748B' }}
+          >
+            Settings
+          </Button>
         </Space>
       </Header>
 
       <Layout style={{ background: '#F8FAFC' }}>
-        {/* 左侧图标导航栏 - 图标+文字纵向排列 */}
-        <Sider
-          width={64}
-          style={{
-            background: '#FAFBFC',
-            borderRight: '1px solid #E2E8F0',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center'
-          }}
-        >
-          <Sidebar />
-        </Sider>
-
-        {/* 侧边栏内容区 */}
+        {/* Sidebar */}
         {sidebarVisible && (
-          <Sider
-            width={280}
-            style={{
+          <Sider 
+            width={280} 
+            style={{ 
               background: '#FFFFFF',
               borderRight: '1px solid #E2E8F0',
               overflow: 'auto'
@@ -386,83 +346,105 @@ function App() {
           </Sider>
         )}
 
-        {/* 右侧主区域 */}
-        <Layout style={{ background: '#F8FAFC' }}>
-          {/* URL 栏 - 固定不滚动 */}
-          <div style={{
-            padding: '12px 16px',
+        {/* Main Content */}
+        <Content style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Request Section */}
+          <div style={{ 
+            flex: 1, 
+            overflow: 'auto',
             background: '#FFFFFF',
-            borderBottom: '1px solid #E2E8F0',
+            borderBottom: '1px solid #E2E8F0'
           }}>
-            {/* 面包屑导航 */}
-            <div style={{
+            {/* Breadcrumb & Actions Bar */}
+            <div style={{ 
+              padding: '12px 16px',
+              borderBottom: '1px solid #E2E8F0',
+              background: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
-              marginBottom: 12,
-              fontSize: 12,
-              color: '#64748B'
+              gap: 8
             }}>
-              {/* Collection 名称 */}
-              {currentCollection ? (
-                <>
-                  {editingCollection ? (
-                    <Input
-                      size="small"
-                      value={editCollectionName}
-                      onChange={e => setEditCollectionName(e.target.value)}
-                      onPressEnter={saveCollectionName}
-                      onBlur={saveCollectionName}
-                      autoFocus
-                      style={{ width: 120, fontSize: 12 }}
-                    />
-                  ) : (
-                    <span
-                      onClick={handleCollectionClick}
-                      onDoubleClick={startEditCollection}
-                      style={{ 
-                        color: '#F59E0B', 
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        padding: '2px 4px',
-                        borderRadius: 4
-                      }}
-                    >
-                      {currentCollection.name}
-                    </span>
-                  )}
-                  <span style={{ margin: '0 8px' }}>/</span>
-                </>
-              ) : null}
-              {/* Request 名称 */}
-              {editingRequest ? (
-                <Input
+              {/* Sidebar Toggle */}
+              <Button
+                type="text"
+                icon={sidebarVisible ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+                onClick={toggleSidebar}
+                style={{ color: '#64748B' }}
+              />
+
+              {/* Collection 面包屑 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {editingCollection ? (
+                  <Input 
+                    size="small" 
+                    value={editCollectionName}
+                    onChange={e => setEditCollectionName(e.target.value)}
+                    onPressEnter={saveCollectionName}
+                    onBlur={saveCollectionName}
+                    autoFocus
+                    style={{ width: 120, fontSize: 12 }}
+                  />
+                ) : (
+                  <span 
+                    onClick={startEditCollection}
+                    style={{ 
+                      cursor: 'pointer',
+                      color: currentCollection ? '#3B82F6' : '#94A3B8',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: currentCollection ? '#EFF6FF' : 'transparent'
+                    }}
+                  >
+                    {currentCollection?.name || 'Select Collection'}
+                  </span>
+                )}
+                
+                <span style={{ color: '#CBD5E1' }}>/</span>
+                
+                {editingRequest ? (
+                  <Input 
+                    size="small" 
+                    value={editRequestName}
+                    onChange={e => setEditRequestName(e.target.value)}
+                    onPressEnter={saveRequestName}
+                    onBlur={saveRequestName}
+                    autoFocus
+                    style={{ width: 150, fontSize: 12 }}
+                  />
+                ) : (
+                  <span 
+                    onClick={startEditRequest}
+                    style={{ 
+                      cursor: 'pointer',
+                      color: '#1E293B',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      padding: '2px 6px',
+                      borderRadius: 4
+                    }}
+                  >
+                    {currentRequest.name || 'Untitled Request'}
+                    {dirtyRequestIds.has(currentRequest.id) && <span style={{ color: '#F59E0B', marginLeft: 4, fontWeight: 600 }}>*</span>}
+                  </span>
+                )}
+              </div>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <Button 
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleNewRequest}
                   size="small"
-                  value={editRequestName}
-                  onChange={e => setEditRequestName(e.target.value)}
-                  onPressEnter={saveRequestName}
-                  onBlur={saveRequestName}
-                  autoFocus
-                  style={{ width: 150, fontSize: 12 }}
-                />
-              ) : (
-                <span
-                  onDoubleClick={startEditRequest}
-                  style={{ 
-                    color: '#1E293B',
-                    cursor: 'pointer',
-                    padding: '2px 4px',
-                    borderRadius: 4
-                  }}
                 >
-                  {currentRequest.name || 'Untitled Request'}
-                  {dirtyRequestIds.has(currentRequest.id) && <span style={{ color: '#F59E0B', marginLeft: 4, fontWeight: 600 }}>*</span>}
-                </span>
-              )}
+                  New
+                </Button>
+              </div>
             </div>
 
             {/* URL 输入区 */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {/* Method 选择器 */}
+            <div style={{ padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
               <Dropdown
                 menu={{
                   items: methodItems,
@@ -477,46 +459,16 @@ function App() {
                     fontWeight: 600,
                     fontSize: 13,
                     borderColor: '#E2E8F0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
                   }}
                 >
                   {currentRequest.method}
-                  <DownOutlined style={{ fontSize: 10 }} />
+                  <DownOutlined style={{ fontSize: 10, marginLeft: 4 }} />
                 </Button>
               </Dropdown>
 
-              {/* URL 输入框 */}
               <Input
                 value={currentRequest.url}
-                onChange={(e) => {
-                  const newUrl = e.target.value;
-                  const questionMarkIndex = newUrl.indexOf('?');
-                  if (questionMarkIndex !== -1) {
-                    const baseUrl = newUrl.substring(0, questionMarkIndex);
-                    const queryString = newUrl.substring(questionMarkIndex + 1);
-                    
-                    const { params } = parseUrlParams(newUrl);
-                    const mergedParams = params.map(newParam => {
-                      const existing = currentRequest.params.find(
-                        p => p.key === newParam.key && p.enabled
-                      );
-                      return existing ? { ...existing, value: newParam.value } : newParam;
-                    });
-                    
-                    if (queryString.trim()) {
-                      // 有完整参数（如 key=value），解析后 URL 去掉参数部分
-                      setCurrentRequest({ url: baseUrl, params: mergedParams }, undefined, true);
-                    } else {
-                      // 只有 ? 或正在输入中（如 ?x），保留 URL 不变，不同步 params
-                      // 直接更新 URL，让用户继续输入
-                      setCurrentRequest({ url: newUrl }, undefined, true);
-                    }
-                    return;
-                  }
-                  setCurrentRequest({ url: newUrl });
-                }}
+                onChange={(e) => handleUrlChange(e.target.value)}
                 placeholder="Enter request URL"
                 style={{
                   flex: 1,
@@ -525,7 +477,6 @@ function App() {
                 }}
               />
 
-              {/* Send 按钮 */}
               <Button
                 type="primary"
                 icon={<SendOutlined />}
@@ -540,7 +491,6 @@ function App() {
                 Send
               </Button>
 
-              {/* Save 按钮 */}
               <Tooltip title="Save (Ctrl+S)">
                 <Button
                   icon={<SaveOutlined />}
@@ -549,43 +499,21 @@ function App() {
                 />
               </Tooltip>
             </div>
+
+            {/* Request Panel */}
+            <RequestPanel onParamsChange={handleParamsChange} />
           </div>
 
-          {/* 可滚动内容区 */}
-          <Content style={{
-            display: 'flex',
-            flexDirection: 'column',
-            background: '#F8FAFC',
-            overflowY: 'auto',
-            overflowX: 'hidden'
-          }}>
-            {/* 请求区域 - 标签页 */}
-            <div style={{
-              background: '#FFFFFF',
-              borderBottom: '1px solid #E2E8F0',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              <RequestPanel />
-            </div>
-
-            {/* 响应区域 */}
-            <div style={{
-              background: '#FFFFFF',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 300
-            }}>
-              <ResponsePanel />
-            </div>
-          </Content>
-        </Layout>
+          {/* Response Section */}
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <ResponsePanel />
+          </div>
+        </Content>
       </Layout>
 
-      {/* Import Modal */}
-      <ImportModal
-        open={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
+      <ImportModal 
+        open={importModalOpen} 
+        onClose={() => setImportModalOpen(false)} 
       />
     </Layout>
   );

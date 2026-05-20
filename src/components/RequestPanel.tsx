@@ -38,7 +38,11 @@ const ensureEmptyRow = (items: KeyValuePair[]): KeyValuePair[] => {
   return items;
 };
 
-export function RequestPanel() {
+interface RequestPanelProps {
+  onParamsChange?: (params: KeyValuePair[]) => void;
+}
+
+export function RequestPanel({ onParamsChange }: RequestPanelProps = {}) {
   const { 
     currentRequest
   } = useAppStore();
@@ -77,7 +81,7 @@ export function RequestPanel() {
                 )}
               </span>
             ),
-            children: <ParamsTab />,
+            children: <ParamsTab onParamsChange={onParamsChange} />,
           },
           {
             key: 'auth',
@@ -130,7 +134,11 @@ export function RequestPanel() {
 }
 
 // Params 标签页 - 绑定到 store
-function ParamsTab() {
+interface ParamsTabProps {
+  onParamsChange?: (params: KeyValuePair[]) => void;
+}
+
+function ParamsTab({ onParamsChange }: ParamsTabProps) {
   const { currentRequest, setCurrentRequest } = useAppStore();
   
   // 确保 params 数组存在，如果不存在则初始化为空数组
@@ -144,7 +152,12 @@ function ParamsTab() {
   const updateParams = (newParams: KeyValuePair[]) => {
     // 过滤掉空行（key 和 value 都为空）
     const validParams = newParams.filter(p => p.key !== '' || p.value !== '');
+    // 先更新 store
     setCurrentRequest({ params: validParams });
+    // 如果有 onParamsChange，调用它同步到 URL
+    if (onParamsChange) {
+      onParamsChange(validParams);
+    }
   };
 
   const columns = [
