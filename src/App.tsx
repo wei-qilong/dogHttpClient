@@ -7,8 +7,7 @@ import {
   SettingOutlined,
   DownOutlined,
   SendOutlined,
-  SaveOutlined,
-  UploadOutlined
+  SaveOutlined
 } from '@ant-design/icons';
 import { useAppStore } from './store';
 import { SidebarContent } from './components/Sidebar';
@@ -240,7 +239,9 @@ function App() {
 
   // 处理params变化 - 反向同步到URL
   const handleParamsChange = (newParams: KeyValuePair[]) => {
-    const baseUrl = currentRequest.url.split('?')[0] || '';
+    // 使用 getState 获取最新 URL，避免闭包问题
+    const latestUrl = useAppStore.getState().currentRequest.url;
+    const baseUrl = latestUrl.split('?')[0] || '';
     const queryString = paramsToQueryString(newParams);
     const newUrl = baseUrl + queryString;
     
@@ -282,14 +283,6 @@ function App() {
         <Space>
           <Button 
             type="text" 
-            icon={<UploadOutlined />}
-            onClick={() => setImportModalOpen(true)}
-            style={{ color: '#64748B' }}
-          >
-            Import
-          </Button>
-          <Button 
-            type="text" 
             icon={<SettingOutlined />}
             style={{ color: '#64748B' }}
           >
@@ -309,7 +302,7 @@ function App() {
               overflow: 'auto'
             }}
           >
-            <SidebarContent />
+            <SidebarContent onImportClick={() => setImportModalOpen(true)} />
           </Sider>
         )}
 

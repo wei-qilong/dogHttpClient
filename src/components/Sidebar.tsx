@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { 
-  FolderOutlined, 
-  GlobalOutlined, 
+import {
+  FolderOutlined,
+  GlobalOutlined,
   HistoryOutlined,
   PlusOutlined,
   DownOutlined,
@@ -9,7 +9,8 @@ import {
   DeleteOutlined,
   EditOutlined,
   CheckOutlined,
-  CloseOutlined
+  CloseOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import { 
   Button, 
@@ -102,14 +103,18 @@ export function Sidebar() {
 }
 
 // 侧边栏详细内容
-export function SidebarContent() {
+interface SidebarContentProps {
+  onImportClick?: () => void;
+}
+
+export function SidebarContent({ onImportClick }: SidebarContentProps = {}) {
   const { sidebarActiveTab } = useAppStore();
   const [showNewCollection, setShowNewCollection] = useState(false);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 标题栏 */}
-      <div style={{ 
+      <div style={{
         padding: '12px 16px',
         borderBottom: '1px solid #E2E8F0',
         display: 'flex',
@@ -123,7 +128,14 @@ export function SidebarContent() {
         </span>
         <Space size={4}>
           {sidebarActiveTab === 'collections' && (
-            <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} onClick={() => setShowNewCollection(true)} />
+            <>
+              <Tooltip title="Import">
+                <Button type="text" size="small" icon={<UploadOutlined />} style={{ color: '#64748B' }} onClick={onImportClick} />
+              </Tooltip>
+              <Tooltip title="New Collection">
+                <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} onClick={() => setShowNewCollection(true)} />
+              </Tooltip>
+            </>
           )}
           {sidebarActiveTab === 'environments' && (
             <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} />
