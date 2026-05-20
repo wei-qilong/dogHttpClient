@@ -74,10 +74,10 @@ export function ResponsePanel() {
     // PPT
     if (mimeType.includes('presentationml.presentation')) return { ext: 'pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
     if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return { ext: 'ppt', mime: 'application/vnd.ms-powerpoint' };
-    // WPS (金山办公)
-    if (mimeType.includes('kswps')) return { ext: 'wps', mime: 'application/kswps' };
-    if (mimeType.includes('et')) return { ext: 'et', mime: 'application/et' };
-    if (mimeType.includes('dps')) return { ext: 'dps', mime: 'application/dps' };
+    // WPS (金山办公) - 使用更精确的匹配
+    if (mimeType.includes('application/kswps') || mimeType.includes('wps')) return { ext: 'wps', mime: 'application/kswps' };
+    if (mimeType.includes('application/et') || mimeType === 'et') return { ext: 'et', mime: 'application/et' };
+    if (mimeType.includes('application/dps') || mimeType.includes('dps')) return { ext: 'dps', mime: 'application/dps' };
     // PDF
     if (mimeType.includes('pdf')) return { ext: 'pdf', mime: 'application/pdf' };
 

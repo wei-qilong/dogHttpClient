@@ -540,11 +540,13 @@ function FormDataBody() {
     const reader = new FileReader();
     reader.onload = () => {
       const newData = [...displayData];
+      // 存储文件内容的 base64 数据（去掉 data:xxx;base64, 前缀）
+      const base64Data = (reader.result as string).split(',')[1];
       newData[index] = { 
         ...newData[index], 
         type: 'file',
         fileName: file.name,
-        value: file.name
+        value: base64Data  // 存储文件内容而不是文件名
       };
       updateFormData(newData);
     };
@@ -992,7 +994,10 @@ function CodeTab() {
         if (enabledData.length > 0) {
           for (const item of enabledData) {
             if (item.type === 'file' && item.fileName) {
-              parts.push(`  -F '${item.key}=@${item.fileName}'`);
+              // 文件名包含特殊字符时用引号包裹
+              const needsQuotes = /[\s'"$&|;<>]/.test(item.fileName);
+              const fileName = needsQuotes ? `"${item.fileName.replace(/"/g, '\\"')}"` : item.fileName;
+              parts.push(`  -F '${item.key}=@${fileName}'`);
             } else {
               parts.push(`  -F '${item.key}="${item.value.replace(/"/g, '\\"')}"'`);
             }

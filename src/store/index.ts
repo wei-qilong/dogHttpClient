@@ -160,6 +160,7 @@ export const useAppStore = create<AppState>((set) => ({
 
       // 构建请求体
       let requestBody: string | null = null;
+      let requestFormData: Array<{ key: string; value: string; file_name?: string; content_type?: string; is_file: boolean }> | null = null;
       let requestHeaders: Record<string, string> = currentRequest.headers
         .filter(h => h.enabled && h.key)
         .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {} as Record<string, string>);
@@ -173,35 +174,24 @@ export const useAppStore = create<AppState>((set) => ({
           requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
         }
       } else if (currentRequest.bodyType === 'form-data' && currentRequest.formData) {
-        // form-data 生成真正的 multipart/form-data 格式
+        // form-data 使用后端 multipart 处理
         const enabledData = currentRequest.formData.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
-          // 生成随机 boundary
-          const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2, 15);
-          
-          const formParts: string[] = [];
-          for (const item of enabledData) {
-            formParts.push(`--${boundary}`);
-            if (item.type === 'file' && item.fileName) {
-              // 文件字段
-              const contentType = item.fileName.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image/jpeg' : 'application/octet-stream';
-              formParts.push(`Content-Disposition: form-data; name="${item.key}"; filename="${item.fileName}"`);
-              formParts.push(`Content-Type: ${contentType}`);
-              formParts.push('');
-              // 文件内容 - 这里简化处理，实际应该读取文件内容
-              formParts.push(item.value || '');
-            } else {
-              // 普通文本字段
-              formParts.push(`Content-Disposition: form-data; name="${item.key}"`);
-              formParts.push('');
-              formParts.push(item.value);
-            }
-          }
-          formParts.push(`--${boundary}--`);
-          formParts.push(''); // 结尾空行
-          
-          requestBody = formParts.join('\r\n');
-          requestHeaders['Content-Type'] = `multipart/form-data; boundary=${boundary}`;
+          requestFormData = enabledData.map(item => {
+            const contentType = item.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image/jpeg' : 
+                               item.fileName?.match(/\.(pdf)$/i) ? 'application/pdf' :
+                               item.fileName?.match(/\.(txt|text)$/i) ? 'text/plain' :
+                               'application/octet-stream';
+            return {
+              key: item.key,
+              value: item.value || '',
+              file_name: item.fileName,
+              content_type: item.type === 'file' ? contentType : undefined,
+              is_file: item.type === 'file',
+            };
+          });
+          // 不设置 Content-Type，让 reqwest 自动设置 multipart boundary
+          delete requestHeaders['Content-Type'];
         }
       } else if (currentRequest.bodyType === 'binary' && currentRequest.binaryFile) {
         requestBody = currentRequest.binaryFile.data;
@@ -210,6 +200,7 @@ export const useAppStore = create<AppState>((set) => ({
 
       console.log('[sendRequest] Body type:', currentRequest.bodyType);
       console.log('[sendRequest] Request body:', requestBody);
+      console.log('[sendRequest] Form data:', requestFormData);
 
       // 调用 Tauri 后端代理请求，绕过 CORS
       const result: any = await invoke('send_http_request', {
@@ -218,6 +209,7 @@ export const useAppStore = create<AppState>((set) => ({
           url: url,
           headers: requestHeaders,
           body: requestBody,
+          form_data: requestFormData,
         }
       });
 

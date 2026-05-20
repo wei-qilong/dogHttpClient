@@ -277,18 +277,19 @@ function App() {
             onClick={toggleSidebar}
             style={{ color: '#64748B', fontSize: 16 }}
           />
-          <Space size={8}>
+          <Space size={8} align="center">
             <img 
               src="/icon.png" 
               alt="dogHttpClient" 
               style={{
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
                 borderRadius: 6,
-                objectFit: 'cover'
+                objectFit: 'cover',
+                display: 'block'
               }}
             />
-            <span style={{ color: '#1E293B', fontWeight: 600, fontSize: 15 }}>dogHttpClient</span>
+            <span style={{ color: '#1E293B', fontWeight: 600, fontSize: 16, lineHeight: '24px' }}>dogHttpClient</span>
           </Space>
 
           <Divider type="vertical" style={{ height: 24, margin: '0 8px' }} />

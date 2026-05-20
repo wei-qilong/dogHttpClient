@@ -13,6 +13,20 @@ pub struct HttpRequest {
     pub url: String,
     pub headers: HashMap<String, String>,
     pub body: Option<String>,
+    #[serde(default)]
+    pub form_data: Option<Vec<FormDataItem>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FormDataItem {
+    pub key: String,
+    pub value: String,
+    #[serde(default)]
+    pub file_name: Option<String>,
+    #[serde(default)]
+    pub content_type: Option<String>,
+    #[serde(default)]
+    pub is_file: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -28,16 +42,6 @@ pub struct HttpResponse {
 #[derive(Debug, Serialize)]
 pub struct HttpError {
     pub message: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct FormDataItem {
-    pub key: String,
-    pub value: String,
-    #[serde(default)]
-    pub file_name: Option<String>,
-    #[serde(default)]
-    pub content_type: Option<String>,
 }
 
 #[tauri::command]
@@ -63,8 +67,36 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
         req_builder = req_builder.header(key, value);
     }
 
-    // Add body
-    if let Some(body) = request.body {
+    // Handle form-data multipart
+    if let Some(form_data) = request.form_data {
+        let mut multipart = reqwest::multipart::Form::new();
+        
+        for item in form_data {
+            if item.is_file {
+                // Decode base64 content
+                let file_content = base64::decode(&item.value)
+                    .map_err(|e| HttpError {
+                        message: format!("Failed to decode file content: {}", e),
+                    })?;
+                
+                let file_name = item.file_name.unwrap_or_else(|| "file".to_string());
+                let content_type = item.content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+                
+                let part = reqwest::multipart::Part::bytes(file_content)
+                    .file_name(file_name)
+                    .mime_str(&content_type)
+                    .map_err(|e| HttpError {
+                        message: format!("Failed to create file part: {}", e),
+                    })?;
+                
+                multipart = multipart.part(item.key, part);
+            } else {
+                multipart = multipart.text(item.key, item.value);
+            }
+        }
+        
+        req_builder = req_builder.multipart(multipart);
+    } else if let Some(body) = request.body {
         req_builder = req_builder.body(body);
     }
 
