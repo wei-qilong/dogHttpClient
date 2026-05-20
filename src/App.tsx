@@ -10,7 +10,7 @@ import {
   SaveOutlined
 } from '@ant-design/icons';
 import { useAppStore } from './store';
-import { SidebarContent } from './components/Sidebar';
+import { Sidebar, SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
@@ -294,16 +294,23 @@ function App() {
       <Layout style={{ background: '#F8FAFC' }}>
         {/* Sidebar */}
         {sidebarVisible && (
-          <Sider
-            width={280}
-            style={{
-              background: '#FFFFFF',
-              borderRight: '1px solid #E2E8F0',
-              overflow: 'auto'
-            }}
-          >
-            <SidebarContent onImportClick={() => setImportModalOpen(true)} />
-          </Sider>
+          <>
+            {/* 图标导航栏 */}
+            <div style={{ width: 60, background: '#FFFFFF', borderRight: '1px solid #E2E8F0' }}>
+              <Sidebar />
+            </div>
+            {/* 内容面板 */}
+            <Sider
+              width={220}
+              style={{
+                background: '#FFFFFF',
+                borderRight: '1px solid #E2E8F0',
+                overflow: 'auto'
+              }}
+            >
+              <SidebarContent onImportClick={() => setImportModalOpen(true)} />
+            </Sider>
+          </>
         )}
 
         {/* Main Content */}
