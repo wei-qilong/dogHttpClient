@@ -17,7 +17,7 @@ import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
 import type { HttpMethod, KeyValuePair } from './types';
 
-const { Header, Sider, Content } = Layout;
+const { Header } = Layout;
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
@@ -246,6 +246,7 @@ function App() {
     const questionMarkIndex = newUrl.indexOf('?');
     
     if (questionMarkIndex === -1) {
+      // 没有?，直接更新URL，清空params
       setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
       return;
     }
@@ -254,15 +255,36 @@ function App() {
     const queryString = newUrl.substring(questionMarkIndex + 1);
     
     if (!queryString) {
+      // 只有 ?，保留URL不变
       setCurrentRequest({ url: newUrl }, undefined, true);
       return;
     }
     
-    if (!queryString.includes('=') && !queryString.includes('&')) {
+    // 检查是否需要解析
+    // 如果queryString中任何一个key后面没有value（=后面为空），就保留URL让用户继续输入
+    const pairs = queryString.split('&');
+    let hasIncomplete = false;
+    for (const pair of pairs) {
+      const equalIndex = pair.indexOf('=');
+      if (equalIndex === -1) {
+        // 完全没有 =，用户正在输入key，如 ?xx
+        hasIncomplete = true;
+        break;
+      }
+      if (equalIndex === pair.length - 1) {
+        // = 在最后，如 ?xx=，用户正在输入value
+        hasIncomplete = true;
+        break;
+      }
+    }
+    
+    if (hasIncomplete) {
+      // 有未完成的参数，保留URL不变（包含?和未完成的参数），params不变
       setCurrentRequest({ url: newUrl }, undefined, true);
       return;
     }
     
+    // 所有参数都完整，解析参数，更新URL为去掉参数的版本
     const { params } = parseUrlParams(newUrl);
     setCurrentRequest({ url: baseUrl, params }, undefined, true);
   };
@@ -327,23 +349,25 @@ function App() {
         </Space>
       </Header>
 
-      <Layout style={{ background: '#F8FAFC' }}>
+      <Layout style={{ background: '#F8FAFC', display: 'flex', flexDirection: 'row' }}>
         {/* Sidebar */}
         {sidebarVisible && (
-          <Sider 
-            width={280} 
-            style={{ 
+          <div
+            style={{
+              width: 280,
+              flexShrink: 0,
               background: '#FFFFFF',
               borderRight: '1px solid #E2E8F0',
-              overflow: 'auto'
+              overflow: 'auto',
+              height: '100%'
             }}
           >
             <SidebarContent />
-          </Sider>
+          </div>
         )}
 
         {/* Main Content */}
-        <Content style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Request Section */}
           <div style={{ 
             flex: 1, 
@@ -504,12 +528,12 @@ function App() {
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <ResponsePanel />
           </div>
-        </Content>
+        </div>
       </Layout>
 
-      <ImportModal 
-        open={importModalOpen} 
-        onClose={() => setImportModalOpen(false)} 
+      <ImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
       />
     </Layout>
   );
