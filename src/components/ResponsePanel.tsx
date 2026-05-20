@@ -214,15 +214,57 @@ export function ResponsePanel() {
 
   // 复制响应到剪切板
   const handleCopy = () => {
-    navigator.clipboard.writeText(currentResponse.body);
+    const textToCopy = isBinaryContent() 
+      ? '[Binary data - use Save Response to download]' 
+      : base64ToString(currentResponse.body);
+    navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Base64 解码函数
+  const base64ToUint8Array = (base64: string): Uint8Array => {
+    const binaryString = window.atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  };
+
+  // Base64 解码为字符串（用于显示）
+  const base64ToString = (base64: string): string => {
+    try {
+      const bytes = base64ToUint8Array(base64);
+      // 尝试 UTF-8 解码
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      return decoder.decode(bytes);
+    } catch {
+      return '[Binary data - use Save Response to download]';
+    }
+  };
+
+  // 判断是否是二进制内容
+  const isBinaryContent = (): boolean => {
+    const contentType = (currentResponse.headers?.['Content-Type'] || '').toLowerCase();
+    return contentType.includes('application/octet-stream') ||
+           contentType.includes('application/pdf') ||
+           contentType.includes('image/') ||
+           contentType.includes('video/') ||
+           contentType.includes('audio/') ||
+           contentType.includes('application/vnd.') ||
+           contentType.includes('application/msword') ||
+           contentType.includes('application/excel') ||
+           contentType.includes('application/powerpoint') ||
+           contentType.includes('application/zip');
   };
 
   // 保存响应到文件
   const handleSave = () => {
     const { ext, mime } = getFileInfo();
-    const blob = new Blob([currentResponse.body], { type: mime });
+    // 后端返回的是 base64 编码的数据，需要解码
+    const bytes = base64ToUint8Array(currentResponse.body);
+    const blob = new Blob([bytes], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -340,11 +382,10 @@ export function ResponsePanel() {
         >
           <div style={{ padding: '12px 16px' }}>
             {/* Body 内容 */}
-            <pre style={{ 
-              background: '#F8FAFC', 
-              padding: 16, 
+            <pre style={{
+              background: '#F8FAFC',
+              padding: '12px 16px',
               borderRadius: 6,
-              fontFamily: 'monospace',
               fontSize: 12,
               border: '1px solid #E2E8F0',
               color: '#1E293B',
@@ -355,7 +396,7 @@ export function ResponsePanel() {
               wordBreak: 'break-all',
               maxHeight: 'calc(100vh - 300px)'
             }}>
-              <code>{currentResponse.body}</code>
+              <code>{isBinaryContent() ? '[Binary data - use Save Response to download]' : base64ToString(currentResponse.body)}</code>
             </pre>
           </div>
         </TabPane>

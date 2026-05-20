@@ -122,7 +122,9 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
         message: format!("Failed to read response body: {}", e),
     })?;
     let size_bytes = body_bytes.len();
-    let body = String::from_utf8_lossy(&body_bytes).to_string();
+    
+    // 将二进制数据转为 base64，避免字符串转换损坏
+    let body = general_purpose::STANDARD.encode(&body_bytes);
 
     let time_ms = start.elapsed().as_millis() as u64;
 

@@ -21,38 +21,51 @@ const { Header, Sider, Content } = Layout;
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
-// 解析URL中的query参数
+// 解析URL中的query参数（支持渐进式解析）
 const parseUrlParams = (url: string): { cleanUrl: string; params: KeyValuePair[] } => {
   try {
-    // 处理只有 ? 或 ? 后面没有内容的情况
     const questionMarkIndex = url.indexOf('?');
     if (questionMarkIndex === -1) {
       return { cleanUrl: url, params: [] };
     }
     
     const queryString = url.substring(questionMarkIndex + 1);
-    // 如果没有参数，直接返回
-    if (!queryString || queryString.trim() === '') {
-      return { cleanUrl: url.substring(0, questionMarkIndex), params: [] };
+    // 如果没有参数，返回带?的URL，让用户继续输入
+    if (!queryString) {
+      return { cleanUrl: url, params: [] };
     }
     
-    // 使用 URLSearchParams 解析参数
-    const searchParams = new URLSearchParams(queryString);
     const params: KeyValuePair[] = [];
+    // 按 & 分割参数
+    const pairs = queryString.split('&');
     
-    searchParams.forEach((value, key) => {
-      if (key) { // 只添加有key的参数
+    for (const pair of pairs) {
+      if (pair === '') continue; // 跳过空（如末尾的&）
+      
+      const equalIndex = pair.indexOf('=');
+      if (equalIndex === -1) {
+        // 没有 =，整个作为 key，value 为空
         params.push({
           id: Math.random().toString(36).substring(2, 10),
-          key,
-          value,
+          key: decodeURIComponent(pair),
+          value: '',
+          description: '',
+          enabled: true
+        });
+      } else {
+        // 有 =，分割 key 和 value
+        const key = pair.substring(0, equalIndex);
+        const value = pair.substring(equalIndex + 1);
+        params.push({
+          id: Math.random().toString(36).substring(2, 10),
+          key: decodeURIComponent(key),
+          value: decodeURIComponent(value),
           description: '',
           enabled: true
         });
       }
-    });
+    }
     
-    // 返回清除query后的URL
     return { cleanUrl: url.substring(0, questionMarkIndex), params };
   } catch {
     return { cleanUrl: url, params: [] };
