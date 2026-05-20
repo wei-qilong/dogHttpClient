@@ -211,6 +211,9 @@ function App() {
       return;
     }
     
+    // 获取当前params用于复用ID
+    const currentParams = useAppStore.getState().currentRequest.params || [];
+    
     // 始终解析所有参数（包括不完整的）
     const pairs = queryString.split('&');
     const params: KeyValuePair[] = [];
@@ -218,19 +221,32 @@ function App() {
     for (const pair of pairs) {
       if (pair === '') continue;
       const equalIndex = pair.indexOf('=');
+      let key: string;
+      let value: string;
+      
       if (equalIndex === -1) {
         // 没有 =，如 ?xx → key=xx, value=空
-        params.push({ id: Math.random().toString(36).substring(2, 10), key: decodeURIComponent(pair), value: '', description: '', enabled: true });
+        key = decodeURIComponent(pair);
+        value = '';
       } else if (equalIndex === pair.length - 1) {
         // = 在最后，如 ?xx= → key=xx, value=空
-        const key = pair.substring(0, equalIndex);
-        params.push({ id: Math.random().toString(36).substring(2, 10), key: decodeURIComponent(key), value: '', description: '', enabled: true });
+        key = decodeURIComponent(pair.substring(0, equalIndex));
+        value = '';
       } else {
         // 完整参数，如 ?xx=a
-        const key = pair.substring(0, equalIndex);
-        const value = pair.substring(equalIndex + 1);
-        params.push({ id: Math.random().toString(36).substring(2, 10), key: decodeURIComponent(key), value: decodeURIComponent(value), description: '', enabled: true });
+        key = decodeURIComponent(pair.substring(0, equalIndex));
+        value = decodeURIComponent(pair.substring(equalIndex + 1));
       }
+      
+      // 尝试复用已有param的ID（如果key和value都匹配）
+      const existingParam = currentParams.find(p => p.key === key && p.value === value);
+      params.push({
+        id: existingParam?.id || Math.random().toString(36).substring(2, 10),
+        key,
+        value,
+        description: existingParam?.description || '',
+        enabled: existingParam?.enabled ?? true
+      });
     }
     
     // 地址栏始终保留完整URL（含?和参数），params更新
