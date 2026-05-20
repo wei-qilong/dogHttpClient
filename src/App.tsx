@@ -473,24 +473,26 @@ function App() {
                     const baseUrl = newUrl.substring(0, questionMarkIndex);
                     const queryString = newUrl.substring(questionMarkIndex + 1);
                     
+                    // 只要有 ? 就解析参数（包括空参数）
+                    const { params } = parseUrlParams(newUrl);
+                    // 保留已有 params 的 id，避免闪烁
+                    const mergedParams = params.map(newParam => {
+                      const existing = currentRequest.params.find(
+                        p => p.key === newParam.key && p.enabled
+                      );
+                      return existing ? { ...existing, value: newParam.value } : newParam;
+                    });
+                    
                     if (queryString.trim()) {
-                      // 有参数，解析并同步到 params
-                      const { params } = parseUrlParams(newUrl);
-                      // 保留已有 params 的 id，避免闪烁
-                      const mergedParams = params.map(newParam => {
-                        const existing = currentRequest.params.find(
-                          p => p.key === newParam.key && p.enabled
-                        );
-                        return existing ? { ...existing, value: newParam.value } : newParam;
-                      });
+                      // 有参数，解析并同步到 params，URL 去掉参数部分
                       setCurrentRequest({ url: baseUrl, params: mergedParams });
-                      return;
                     } else {
-                      // 只有 ? 没有参数，清理 URL 中的 ?
-                      setCurrentRequest({ url: baseUrl });
-                      return;
+                      // 只有 ? 没有参数，保留 ? 让用户继续输入
+                      setCurrentRequest({ url: newUrl, params: mergedParams });
                     }
+                    return;
                   }
+                  // 没有 ?，直接更新 URL
                   setCurrentRequest({ url: newUrl });
                 }}
                 placeholder="Enter request URL"
