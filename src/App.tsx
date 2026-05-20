@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layout, Space, Button, Dropdown, Input, Tooltip } from 'antd';
 import {
   MenuFoldOutlined,
@@ -193,12 +193,24 @@ function App() {
     }));
   };
 
+  // 防止 handleParamsChange 和 handleUrlChange 互相触发循环
+  const isUpdatingFromParams = useRef(false);
+  // 记录上次从 URL 解析的参数 key 顺序，用于检测是否需要更新 params
+  const lastUrlParamKeys = useRef<string>('');
+
   // 处理URL变化 - 始终解析已完成参数到params
   const handleUrlChange = (newUrl: string) => {
+    // 如果是 params 变化触发的 URL 更新，跳过 params 解析
+    if (isUpdatingFromParams.current) {
+      isUpdatingFromParams.current = false;
+      setCurrentRequest({ url: newUrl }, undefined, true);
+      return;
+    }
+    
     const questionMarkIndex = newUrl.indexOf('?');
     
     if (questionMarkIndex === -1) {
-      // 没有?，清空params
+      lastUrlParamKeys.current = '';
       setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
       return;
     }
@@ -206,17 +218,31 @@ function App() {
     const queryString = newUrl.substring(questionMarkIndex + 1);
     
     if (!queryString) {
-      // 只有 ?，保留URL，清空params
+      lastUrlParamKeys.current = '';
       setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
       return;
     }
+    
+    // 生成参数 key 签名，用于检测是否需要更新 params
+    const pairs = queryString.split('&');
+    const paramKeys = pairs.filter(p => p !== '').map(p => {
+      const eqIdx = p.indexOf('=');
+      return eqIdx === -1 ? p : p.substring(0, eqIdx);
+    }).join(',');
+    
+    // 如果 key 签名没变，只更新 URL，不更新 params（避免重复）
+    if (paramKeys === lastUrlParamKeys.current) {
+      setCurrentRequest({ url: newUrl }, undefined, true);
+      return;
+    }
+    lastUrlParamKeys.current = paramKeys;
     
     // 获取当前params用于复用ID
     const currentParams = useAppStore.getState().currentRequest.params || [];
     
     // 始终解析所有参数（包括不完整的）
-    const pairs = queryString.split('&');
     const params: KeyValuePair[] = [];
+    const usedIds = new Set<string>();
     
     for (const pair of pairs) {
       if (pair === '') continue;
@@ -225,23 +251,22 @@ function App() {
       let value: string;
       
       if (equalIndex === -1) {
-        // 没有 =，如 ?xx → key=xx, value=空
         key = decodeURIComponent(pair);
         value = '';
       } else if (equalIndex === pair.length - 1) {
-        // = 在最后，如 ?xx= → key=xx, value=空
         key = decodeURIComponent(pair.substring(0, equalIndex));
         value = '';
       } else {
-        // 完整参数，如 ?xx=a
         key = decodeURIComponent(pair.substring(0, equalIndex));
         value = decodeURIComponent(pair.substring(equalIndex + 1));
       }
       
-      // 尝试复用已有param的ID（如果key和value都匹配）
-      const existingParam = currentParams.find(p => p.key === key && p.value === value);
+      // 只按key匹配复用ID（value可能正在输入中会变化）
+      const existingParam = currentParams.find(p => p.key === key && !usedIds.has(p.id));
+      const reusedId = existingParam?.id;
+      if (reusedId) usedIds.add(reusedId);
       params.push({
-        id: existingParam?.id || Math.random().toString(36).substring(2, 10),
+        id: reusedId || Math.random().toString(36).substring(2, 10),
         key,
         value,
         description: existingParam?.description || '',
@@ -255,6 +280,8 @@ function App() {
 
   // 处理params变化 - 反向同步到URL
   const handleParamsChange = (newParams: KeyValuePair[]) => {
+    // 标记这次 URL 更新来自 params，防止 handleUrlChange 重复解析
+    isUpdatingFromParams.current = true;
     // 使用 getState 获取最新 URL，避免闭包问题
     const latestUrl = useAppStore.getState().currentRequest.url;
     const baseUrl = latestUrl.split('?')[0] || '';
