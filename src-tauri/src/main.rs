@@ -138,9 +138,21 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
     })
 }
 
+mod storage;
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![send_http_request])
+        .invoke_handler(tauri::generate_handler![
+            send_http_request,
+            storage::cmd_load_data,
+            storage::cmd_save_data,
+            storage::cmd_create_backup,
+            storage::cmd_list_backups,
+            storage::cmd_restore_backup,
+            storage::cmd_export_data,
+            storage::cmd_import_data,
+            storage::cmd_get_data_directory,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

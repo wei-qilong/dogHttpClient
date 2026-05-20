@@ -11,6 +11,17 @@
       "shell": {
         "all": false,
         "open": true
+      },
+      "fs": {
+        "all": false,
+        "readFile": true,
+        "writeFile": true,
+        "createDir": true,
+        "readDir": true,
+        "exists": true
+      },
+      "path": {
+        "all": true
       }
     },
     "windows": [
