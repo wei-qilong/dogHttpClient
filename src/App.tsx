@@ -133,19 +133,16 @@ function App() {
     setEditingRequest(true);
   };
 
-  // 监听 params 变化，同步更新 URL（双向绑定）
+  // 监听 params 变化，同步更新 URL（双向绑定 - Params → URL）
   const prevParamsRef = { current: currentRequest.params };
   useEffect(() => {
     const prevParams = prevParamsRef.current;
     const currParams = currentRequest.params;
     
-    // 比较 params 是否变化
     if (prevParams !== currParams) {
       prevParamsRef.current = currParams;
       
       const enabledParams = currParams.filter(p => p.enabled && p.key);
-      
-      // 从当前 URL 中提取基础 URL（去掉 query 部分）
       const baseUrl = currentRequest.url.split('?')[0] || '';
       
       if (enabledParams.length > 0) {
@@ -154,12 +151,12 @@ function App() {
           .join('&');
         const newUrl = `${baseUrl}?${queryString}`;
         if (newUrl !== currentRequest.url) {
-          setCurrentRequest({ url: newUrl });
+          // skipDirty=true 避免双向绑定循环标记脏
+          setCurrentRequest({ url: newUrl }, undefined, true);
         }
       } else {
-        // 没有参数时，URL 不应该有 ?
         if (currentRequest.url.includes('?')) {
-          setCurrentRequest({ url: baseUrl });
+          setCurrentRequest({ url: baseUrl }, undefined, true);
         }
       }
     }
@@ -256,48 +253,40 @@ function App() {
   // 保存请求
   const handleSave = () => {
     const state = useAppStore.getState();
-    let targetColId = currentCollectionId;
-
-    // 如果没有归属的 Collection，创建默认的 "default"
-    if (!targetColId) {
-      const scratchPad = state.collections.find(c => c.id === '__scratch_pad__');
-      if (scratchPad) {
-        targetColId = scratchPad.id;
-      } else {
-        // 创建 default Collection
-        const newCol = {
-          id: '__scratch_pad__',
-          name: 'default',
-          requests: [],
-          folders: [],
-        };
-        useAppStore.setState(s => ({
-          collections: [...s.collections, newCol]
-        }));
-        targetColId = '__scratch_pad__';
-      }
-    }
-
-    // 更新或添加 request
     const updatedRequest = { ...state.currentRequest };
     
-    useAppStore.setState(s => ({
-      collections: s.collections.map(c => {
-        if (c.id === targetColId) {
-          const existingIndex = c.requests.findIndex(r => r.id === updatedRequest.id);
-          if (existingIndex >= 0) {
-            // 更新现有 request
-            const newRequests = [...c.requests];
-            newRequests[existingIndex] = updatedRequest;
-            return { ...c, requests: newRequests };
-          } else {
-            // 添加新 request
-            return { ...c, requests: [...c.requests, updatedRequest] };
-          }
+    // 查找请求是否已在某个 collection 中
+    let found = false;
+    const updatedCollections = state.collections.map(col => {
+      const existingIndex = col.requests.findIndex(r => r.id === updatedRequest.id);
+      if (existingIndex >= 0) {
+        found = true;
+        const newRequests = [...col.requests];
+        newRequests[existingIndex] = updatedRequest;
+        return { ...col, requests: newRequests };
+      }
+      return col;
+    });
+    
+    let finalCollections = updatedCollections;
+    let targetColId = state.currentCollectionId;
+    
+    if (!found) {
+      // 请求不在任何 collection 中，添加到 default
+      finalCollections = updatedCollections.map(col => {
+        if (col.name === 'default') {
+          return { ...col, requests: [...col.requests, updatedRequest] };
         }
-        return c;
-      }),
+        return col;
+      });
+      const defaultCol = finalCollections.find(c => c.name === 'default');
+      targetColId = defaultCol?.id || state.currentCollectionId;
+    }
+    
+    useAppStore.setState(s => ({
+      collections: finalCollections,
       currentCollectionId: targetColId,
+      dirtyRequestIds: new Set([...s.dirtyRequestIds].filter(id => id !== updatedRequest.id)),
     }));
   };
 
@@ -503,15 +492,12 @@ function App() {
                 value={currentRequest.url}
                 onChange={(e) => {
                   const newUrl = e.target.value;
-                  // 检查 URL 中是否有 query 参数
                   const questionMarkIndex = newUrl.indexOf('?');
                   if (questionMarkIndex !== -1) {
                     const baseUrl = newUrl.substring(0, questionMarkIndex);
                     const queryString = newUrl.substring(questionMarkIndex + 1);
                     
-                    // 只要有 ? 就解析参数（包括空参数）
                     const { params } = parseUrlParams(newUrl);
-                    // 保留已有 params 的 id，避免闪烁
                     const mergedParams = params.map(newParam => {
                       const existing = currentRequest.params.find(
                         p => p.key === newParam.key && p.enabled
@@ -520,15 +506,15 @@ function App() {
                     });
                     
                     if (queryString.trim()) {
-                      // 有参数，解析并同步到 params，URL 去掉参数部分
-                      setCurrentRequest({ url: baseUrl, params: mergedParams });
+                      // 有完整参数（如 key=value），解析后 URL 去掉参数部分
+                      setCurrentRequest({ url: baseUrl, params: mergedParams }, undefined, true);
                     } else {
-                      // 只有 ? 没有参数，保留 ? 让用户继续输入
-                      setCurrentRequest({ url: newUrl, params: mergedParams });
+                      // 只有 ? 或正在输入中（如 ?x），保留 URL 不变，不同步 params
+                      // 直接更新 URL，让用户继续输入
+                      setCurrentRequest({ url: newUrl }, undefined, true);
                     }
                     return;
                   }
-                  // 没有 ?，直接更新 URL
                   setCurrentRequest({ url: newUrl });
                 }}
                 placeholder="Enter request URL"

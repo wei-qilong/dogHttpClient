@@ -32,7 +32,7 @@ interface AppState {
   // Storage
   isInitialized: boolean;
   
-  // Dirty tracking: 记录未保存的请求 ID
+  // Dirty tracking
   dirtyRequestIds: Set<string>;
   
   // UI State
@@ -44,12 +44,9 @@ interface AppState {
   
   // Actions
   initFromStorage: () => Promise<void>;
-  persistToStorage: () => void;
   markDirty: (requestId: string) => void;
-  markClean: (requestId: string) => void;
-  isRequestDirty: (requestId: string) => boolean;
   saveAllDirty: () => void;
-  setCurrentRequest: (request: Partial<RequestConfig>, collectionId?: string | null) => void;
+  setCurrentRequest: (request: Partial<RequestConfig>, collectionId?: string | null, skipDirty?: boolean) => void;
   setCurrentResponse: (response: ResponseData | null) => void;
   setIsLoading: (loading: boolean) => void;
   setSidebarActiveTab: (tab: 'collections' | 'environments' | 'history') => void;
@@ -76,20 +73,6 @@ const createDefaultRequest = (): RequestConfig => ({
   bodyRawType: 'json',
   preRequestScript: '',
   testsScript: '',
-});
-
-// 将 store 状态转换为存储格式
-const storeToAppData = (state: AppState): AppData => ({
-  version: '1.0.0',
-  collections: state.collections,
-  history: state.history,
-  settings: {
-    theme: 'light',
-    language: 'zh-CN',
-    timeout: 30000,
-    max_history: 100,
-    auto_save: true,
-  },
 });
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -120,28 +103,37 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const data = await loadData();
       
+      // 确保 default collection 存在
+      let collections = data.collections || [];
+      if (!collections.find(c => c.name === 'default')) {
+        collections.unshift({
+          id: '__default__',
+          name: 'default',
+          requests: [],
+          folders: [],
+        });
+      }
+      
       set({
-        collections: data.collections || [],
+        collections,
         history: data.history || [],
         isInitialized: true,
       });
       
-      console.log('[Storage] Data loaded from disk, collections:', data.collections?.length, 'history:', data.history?.length);
+      console.log('[Storage] Data loaded, collections:', collections.length, 'history:', data.history?.length);
     } catch (error) {
       console.error('[Storage] Failed to load data:', error);
-      set({ isInitialized: true });
+      // 即使加载失败也创建 default collection
+      set({
+        collections: [{
+          id: '__default__',
+          name: 'default',
+          requests: [],
+          folders: [],
+        }],
+        isInitialized: true,
+      });
     }
-  },
-  
-  // 持久化到本地存储（防抖 1 秒）
-  persistToStorage: () => {
-    const state = get();
-    if (!state.isInitialized) return;
-    
-    const data = storeToAppData(state);
-    debouncedSave(data, 1000).catch(err => {
-      console.error('[Storage] Auto-save failed:', err);
-    });
   },
   
   // 标记请求为脏（未保存）
@@ -151,31 +143,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { dirtyRequestIds: next };
   }),
   
-  // 标记请求为干净（已保存）
-  markClean: (requestId) => set((state) => {
-    const next = new Set(state.dirtyRequestIds);
-    next.delete(requestId);
-    return { dirtyRequestIds: next };
-  }),
-  
-  // 检查请求是否脏
-  isRequestDirty: (requestId) => get().dirtyRequestIds.has(requestId),
-  
-  // 保存所有脏请求：将当前请求写回 collection，然后持久化
+  // 保存所有脏请求：将当前请求写回 collection（如果不在任何 collection 中则添加到 default），然后持久化
   saveAllDirty: () => {
     const state = get();
     if (state.dirtyRequestIds.size === 0) return;
     
-    const updatedCollections = state.collections.map(col => ({
+    let updatedCollections = state.collections.map(col => ({
       ...col,
       requests: col.requests.map(req => {
         if (state.dirtyRequestIds.has(req.id) && req.id === state.currentRequest.id) {
-          // 当前正在编辑的脏请求，用最新数据覆盖
           return { ...state.currentRequest };
         }
         return req;
       }),
     }));
+    
+    // 如果当前脏请求不在任何 collection 中，添加到 default
+    if (state.dirtyRequestIds.has(state.currentRequest.id)) {
+      const existsInAny = updatedCollections.some(c => 
+        c.requests.some(r => r.id === state.currentRequest.id)
+      );
+      if (!existsInAny) {
+        updatedCollections = updatedCollections.map(col => {
+          if (col.name === 'default') {
+            return { ...col, requests: [...col.requests, { ...state.currentRequest }] };
+          }
+          return col;
+        });
+      }
+    }
     
     // 清除所有脏标记
     set({
@@ -183,7 +179,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       dirtyRequestIds: new Set<string>(),
     });
     
-    // 立即持久化（不防抖）
+    // 立即持久化
     const data: AppData = {
       version: '1.0.0',
       collections: updatedCollections,
@@ -195,7 +191,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   
-  setCurrentRequest: (request, collectionId) => set((state) => {
+  // skipDirty 参数：URL/Params 双向绑定时传 true，避免循环标记脏
+  setCurrentRequest: (request, collectionId, skipDirty = false) => set((state) => {
     const newRequest: RequestConfig = {
       id: request.id ?? state.currentRequest.id,
       name: request.name ?? state.currentRequest.name,
@@ -213,14 +210,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       testsScript: request.testsScript ?? state.currentRequest.testsScript,
     };
     
-    // 如果是编辑现有请求（id 未变），标记为脏
     const requestId = newRequest.id;
     const isEditing = requestId === state.currentRequest.id;
     
     return {
       currentRequest: newRequest,
       ...(collectionId !== undefined && { currentCollectionId: collectionId }),
-      ...(isEditing && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
+      // skipDirty 为 true 时不标记脏（用于 URL/Params 双向绑定）
+      ...(!skipDirty && isEditing && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
     };
   }),
   
@@ -346,7 +343,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 }));
 
 // ===== 自动保存订阅 =====
-// 监听 collections 和 history 变化，自动持久化
 let prevCollectionsJson = '';
 let prevHistoryJson = '';
 
@@ -356,7 +352,6 @@ useAppStore.subscribe((state) => {
   const collectionsJson = JSON.stringify(state.collections);
   const historyJson = JSON.stringify(state.history);
   
-  // 只在 collections 或 history 实际变化时保存
   if (collectionsJson !== prevCollectionsJson || historyJson !== prevHistoryJson) {
     prevCollectionsJson = collectionsJson;
     prevHistoryJson = historyJson;
@@ -365,13 +360,7 @@ useAppStore.subscribe((state) => {
       version: '1.0.0',
       collections: state.collections,
       history: state.history,
-      settings: {
-        theme: 'light',
-        language: 'zh-CN',
-        timeout: 30000,
-        max_history: 100,
-        auto_save: true,
-      },
+      settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
     
     debouncedSave(data, 1000).catch(err => {
