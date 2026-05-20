@@ -42,7 +42,7 @@ export async function loadData(): Promise<AppData> {
       version: '1.0.0',
       collections: [{
         id: 'scratch-pad',
-        name: 'Scratch Pad',
+        name: 'default',
         requests: [],
         folders: [],
       }],

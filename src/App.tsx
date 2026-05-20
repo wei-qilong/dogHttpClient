@@ -88,7 +88,12 @@ const methodItems = methods.map(m => ({
 }));
 
 function App() {
-  const { sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, isLoading, collections, currentCollectionId } = useAppStore();
+  const { sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, isLoading, collections, currentCollectionId, initFromStorage } = useAppStore();
+
+  // 启动时从本地存储加载数据
+  useEffect(() => {
+    initFromStorage();
+  }, [initFromStorage]);
 
   const currentCollection = collections.find(c => c.id === currentCollectionId);
 
@@ -236,16 +241,16 @@ function App() {
     const state = useAppStore.getState();
     let targetColId = currentCollectionId;
 
-    // 如果没有归属的 Collection，创建默认的 "Scratch Pad"
+    // 如果没有归属的 Collection，创建默认的 "default"
     if (!targetColId) {
       const scratchPad = state.collections.find(c => c.id === '__scratch_pad__');
       if (scratchPad) {
         targetColId = scratchPad.id;
       } else {
-        // 创建 Scratch Pad Collection
+        // 创建 default Collection
         const newCol = {
           id: '__scratch_pad__',
-          name: 'Scratch Pad',
+          name: 'default',
           requests: [],
           folders: [],
         };

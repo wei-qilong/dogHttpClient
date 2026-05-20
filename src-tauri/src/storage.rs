@@ -131,7 +131,7 @@ impl StorageManager {
                 version: "1.0.0".to_string(),
                 collections: vec![Collection {
                     id: "scratch-pad".to_string(),
-                    name: "Scratch Pad".to_string(),
+                    name: "default".to_string(),
                     requests: vec![],
                     folders: vec![],
                 }],

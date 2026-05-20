@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import type { RequestConfig, ResponseData, Collection, Environment, HistoryItem } from '../types';
+import { loadData, debouncedSave, type AppData } from '../services/storage';
 
 // Simple UUID generator for browser compatibility
 const generateId = () => {
@@ -14,7 +15,7 @@ const generateId = () => {
 interface AppState {
   // Current request
   currentRequest: RequestConfig;
-  currentCollectionId: string | null; // 当前请求所属的 Collection
+  currentCollectionId: string | null;
   currentResponse: ResponseData | null;
   isLoading: boolean;
   
@@ -28,6 +29,9 @@ interface AppState {
   // History
   history: HistoryItem[];
   
+  // Storage
+  isInitialized: boolean;
+  
   // UI State
   sidebarVisible: boolean;
   sidebarActiveTab: 'collections' | 'environments' | 'history';
@@ -36,6 +40,8 @@ interface AppState {
   bodyTab: 'pretty' | 'raw' | 'preview';
   
   // Actions
+  initFromStorage: () => Promise<void>;
+  persistToStorage: () => void;
   setCurrentRequest: (request: Partial<RequestConfig>, collectionId?: string | null) => void;
   setCurrentResponse: (response: ResponseData | null) => void;
   setIsLoading: (loading: boolean) => void;
@@ -65,30 +71,33 @@ const createDefaultRequest = (): RequestConfig => ({
   testsScript: '',
 });
 
-export const useAppStore = create<AppState>((set) => ({
+// 将 store 状态转换为存储格式
+const storeToAppData = (state: AppState): AppData => ({
+  version: '1.0.0',
+  collections: state.collections,
+  history: state.history,
+  settings: {
+    theme: 'light',
+    language: 'zh-CN',
+    timeout: 30000,
+    max_history: 100,
+    auto_save: true,
+  },
+});
+
+export const useAppStore = create<AppState>((set, get) => ({
   currentRequest: createDefaultRequest(),
   currentResponse: null,
   isLoading: false,
   collections: [],
   environments: [
-    {
-      id: 'dev',
-      name: 'Development',
-      variables: [],
-    },
-    {
-      id: 'test',
-      name: 'Testing',
-      variables: [],
-    },
-    {
-      id: 'prod',
-      name: 'Production',
-      variables: [],
-    },
+    { id: 'dev', name: 'Development', variables: [] },
+    { id: 'test', name: 'Testing', variables: [] },
+    { id: 'prod', name: 'Production', variables: [] },
   ],
   currentEnvironmentId: 'dev',
   history: [],
+  isInitialized: false,
   sidebarVisible: true,
   sidebarActiveTab: 'collections',
   currentCollectionId: null,
@@ -96,8 +105,38 @@ export const useAppStore = create<AppState>((set) => ({
   responseTab: 'body',
   bodyTab: 'pretty',
   
+  // 从本地存储初始化数据
+  initFromStorage: async () => {
+    if (get().isInitialized) return;
+    
+    try {
+      const data = await loadData();
+      
+      set({
+        collections: data.collections || [],
+        history: data.history || [],
+        isInitialized: true,
+      });
+      
+      console.log('[Storage] Data loaded from disk, collections:', data.collections?.length, 'history:', data.history?.length);
+    } catch (error) {
+      console.error('[Storage] Failed to load data:', error);
+      set({ isInitialized: true });
+    }
+  },
+  
+  // 持久化到本地存储（防抖 1 秒）
+  persistToStorage: () => {
+    const state = get();
+    if (!state.isInitialized) return;
+    
+    const data = storeToAppData(state);
+    debouncedSave(data, 1000).catch(err => {
+      console.error('[Storage] Auto-save failed:', err);
+    });
+  },
+  
   setCurrentRequest: (request, collectionId) => set((state) => {
-    // 完全替换 currentRequest，避免数组合并问题
     const newRequest: RequestConfig = {
       id: request.id ?? state.currentRequest.id,
       name: request.name ?? state.currentRequest.name,
@@ -141,13 +180,8 @@ export const useAppStore = create<AppState>((set) => ({
     set({ isLoading: true });
 
     try {
-      // Build URL with query params
       let url = currentRequest.url;
       const enabledParams = currentRequest.params.filter(p => p.enabled && p.key);
-      
-      console.log('[sendRequest] URL:', url);
-      console.log('[sendRequest] All params:', JSON.stringify(currentRequest.params));
-      console.log('[sendRequest] Enabled params:', JSON.stringify(enabledParams));
       
       if (enabledParams.length > 0) {
         const separator = url.includes('?') ? '&' : '?';
@@ -155,10 +189,8 @@ export const useAppStore = create<AppState>((set) => ({
           .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
           .join('&');
         url = url + separator + queryString;
-        console.log('[sendRequest] Final URL:', url);
       }
 
-      // 构建请求体
       let requestBody: string | null = null;
       let requestFormData: Array<{ key: string; value: string; file_name?: string; content_type?: string; is_file: boolean }> | null = null;
       let requestHeaders: Record<string, string> = currentRequest.headers
@@ -174,7 +206,6 @@ export const useAppStore = create<AppState>((set) => ({
           requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
         }
       } else if (currentRequest.bodyType === 'form-data' && currentRequest.formData) {
-        // form-data 使用后端 multipart 处理
         const enabledData = currentRequest.formData.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
           requestFormData = enabledData.map(item => {
@@ -190,7 +221,6 @@ export const useAppStore = create<AppState>((set) => ({
               is_file: item.type === 'file',
             };
           });
-          // 不设置 Content-Type，让 reqwest 自动设置 multipart boundary
           delete requestHeaders['Content-Type'];
         }
       } else if (currentRequest.bodyType === 'binary' && currentRequest.binaryFile) {
@@ -198,11 +228,6 @@ export const useAppStore = create<AppState>((set) => ({
         requestHeaders['Content-Type'] = currentRequest.binaryFile.type;
       }
 
-      console.log('[sendRequest] Body type:', currentRequest.bodyType);
-      console.log('[sendRequest] Request body:', requestBody);
-      console.log('[sendRequest] Form data:', requestFormData);
-
-      // 调用 Tauri 后端代理请求，绕过 CORS
       const result: any = await invoke('send_http_request', {
         request: {
           method: currentRequest.method,
@@ -227,7 +252,6 @@ export const useAppStore = create<AppState>((set) => ({
         isLoading: false
       });
 
-      // Add to history
       const historyItem: HistoryItem = {
         id: generateId(),
         request: { ...currentRequest },
@@ -255,3 +279,38 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 }));
+
+// ===== 自动保存订阅 =====
+// 监听 collections 和 history 变化，自动持久化
+let prevCollectionsJson = '';
+let prevHistoryJson = '';
+
+useAppStore.subscribe((state) => {
+  if (!state.isInitialized) return;
+  
+  const collectionsJson = JSON.stringify(state.collections);
+  const historyJson = JSON.stringify(state.history);
+  
+  // 只在 collections 或 history 实际变化时保存
+  if (collectionsJson !== prevCollectionsJson || historyJson !== prevHistoryJson) {
+    prevCollectionsJson = collectionsJson;
+    prevHistoryJson = historyJson;
+    
+    const data: AppData = {
+      version: '1.0.0',
+      collections: state.collections,
+      history: state.history,
+      settings: {
+        theme: 'light',
+        language: 'zh-CN',
+        timeout: 30000,
+        max_history: 100,
+        auto_save: true,
+      },
+    };
+    
+    debouncedSave(data, 1000).catch(err => {
+      console.error('[Storage] Auto-save failed:', err);
+    });
+  }
+});
