@@ -141,6 +141,10 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
 mod storage;
 
 fn main() {
+    // 初始化日志
+    env_logger::init();
+    log::info!("Starting dogHttpClient...");
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             send_http_request,
@@ -153,6 +157,15 @@ fn main() {
             storage::cmd_import_data,
             storage::cmd_get_data_directory,
         ])
+        .setup(|app| {
+            #[cfg(debug_assertions)]
+            {
+                let window = app.get_window("main").unwrap();
+                window.open_devtools();
+                log::info!("DevTools opened automatically in debug mode");
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
