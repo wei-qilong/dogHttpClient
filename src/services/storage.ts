@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/tauri';
-import type { Collection, RequestConfig, HistoryItem } from '../types';
+import type { Collection, RequestConfig, HistoryItem, Environment } from '../types';
 
 // 检测是否在 Tauri 环境中
 const isTauri = typeof window !== 'undefined' && window.__TAURI__;
@@ -13,6 +13,8 @@ export interface AppData {
   collections: Collection[];
   current_request?: RequestConfig;
   history: HistoryItem[];
+  environments: Environment[];
+  currentEnvironmentId: string | null;
   settings: Settings;
 }
 
@@ -33,6 +35,13 @@ export const defaultSettings: Settings = {
   auto_save: true,
 };
 
+// 默认环境
+const defaultEnvironments: Environment[] = [
+  { id: 'dev', name: 'Development', variables: [] },
+  { id: 'test', name: 'Testing', variables: [] },
+  { id: 'prod', name: 'Production', variables: [] },
+];
+
 // 获取默认数据
 function getDefaultData(): AppData {
   return {
@@ -44,6 +53,8 @@ function getDefaultData(): AppData {
       folders: [],
     }],
     history: [],
+    environments: defaultEnvironments,
+    currentEnvironmentId: 'dev',
     settings: defaultSettings,
   };
 }

@@ -104,10 +104,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   // 从本地存储初始化数据
   initFromStorage: async () => {
     if (get().isInitialized) return;
-    
+
     try {
       const data = await loadData();
-      
+
       // 确保 default collection 存在
       let collections = data.collections || [];
       if (!collections.find(c => c.name === 'default')) {
@@ -118,17 +118,26 @@ export const useAppStore = create<AppState>((set, get) => ({
           folders: [],
         });
       }
-      
+
+      // 加载 environments，如果没有则使用默认值
+      const environments = data.environments?.length > 0 ? data.environments : [
+        { id: 'dev', name: 'Development', variables: [] },
+        { id: 'test', name: 'Testing', variables: [] },
+        { id: 'prod', name: 'Production', variables: [] },
+      ];
+
       set({
         collections,
         history: data.history || [],
+        environments,
+        currentEnvironmentId: data.currentEnvironmentId || 'dev',
         isInitialized: true,
       });
-      
-      console.log('[Storage] Data loaded, collections:', collections.length, 'history:', data.history?.length);
+
+      console.log('[Storage] Data loaded, collections:', collections.length, 'history:', data.history?.length, 'environments:', environments.length);
     } catch (error) {
       console.error('[Storage] Failed to load data:', error);
-      // 即使加载失败也创建 default collection
+      // 即使加载失败也创建默认数据
       set({
         collections: [{
           id: '__default__',
@@ -136,6 +145,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           requests: [],
           folders: [],
         }],
+        environments: [
+          { id: 'dev', name: 'Development', variables: [] },
+          { id: 'test', name: 'Testing', variables: [] },
+          { id: 'prod', name: 'Production', variables: [] },
+        ],
+        currentEnvironmentId: 'dev',
         isInitialized: true,
       });
     }
@@ -396,24 +411,35 @@ export const useAppStore = create<AppState>((set, get) => ({
 // ===== 自动保存订阅 =====
 let prevCollectionsJson = '';
 let prevHistoryJson = '';
+let prevEnvironmentsJson = '';
+let prevCurrentEnvId: string | null = null;
 
 useAppStore.subscribe((state) => {
   if (!state.isInitialized) return;
-  
+
   const collectionsJson = JSON.stringify(state.collections);
   const historyJson = JSON.stringify(state.history);
-  
-  if (collectionsJson !== prevCollectionsJson || historyJson !== prevHistoryJson) {
+  const environmentsJson = JSON.stringify(state.environments);
+
+  if (collectionsJson !== prevCollectionsJson ||
+      historyJson !== prevHistoryJson ||
+      environmentsJson !== prevEnvironmentsJson ||
+      state.currentEnvironmentId !== prevCurrentEnvId) {
+
     prevCollectionsJson = collectionsJson;
     prevHistoryJson = historyJson;
-    
+    prevEnvironmentsJson = environmentsJson;
+    prevCurrentEnvId = state.currentEnvironmentId;
+
     const data: AppData = {
       version: '1.0.0',
       collections: state.collections,
       history: state.history,
+      environments: state.environments,
+      currentEnvironmentId: state.currentEnvironmentId,
       settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
-    
+
     debouncedSave(data, 1000).catch(err => {
       console.error('[Storage] Auto-save failed:', err);
     });

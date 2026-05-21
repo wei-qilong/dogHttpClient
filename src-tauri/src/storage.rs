@@ -48,6 +48,10 @@ pub struct AppData {
     pub current_request: Option<RequestConfig>,
     /// 请求历史
     pub history: Vec<HistoryItem>,
+    /// 环境列表
+    pub environments: Vec<Environment>,
+    /// 当前环境ID
+    pub current_environment_id: Option<String>,
     /// 用户设置
     pub settings: Settings,
 }
@@ -143,6 +147,14 @@ pub struct HistoryItem {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Environment {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub variables: Vec<KeyValuePair>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ResponseData {
     pub status: u16,
     #[serde(rename = "statusText")]
@@ -208,9 +220,9 @@ impl StorageManager {
     /// 加载数据
     pub fn load_data(&self) -> Result<AppData, String> {
         let file_path = self.get_data_file_path();
-        
+
         log_to_file(&format!("[Storage] Loading data from: {:?}", file_path));
-        
+
         if !file_path.exists() {
             log_to_file("[Storage] Data file does not exist, returning default");
             // 返回默认数据
@@ -225,31 +237,47 @@ impl StorageManager {
                 }],
                 current_request: None,
                 history: vec![],
+                environments: vec![
+                    Environment { id: "dev".to_string(), name: "Development".to_string(), variables: vec![] },
+                    Environment { id: "test".to_string(), name: "Testing".to_string(), variables: vec![] },
+                    Environment { id: "prod".to_string(), name: "Production".to_string(), variables: vec![] },
+                ],
+                current_environment_id: Some("dev".to_string()),
                 settings: Settings::default(),
             });
         }
 
         let content = fs::read_to_string(&file_path)
             .map_err(|e| format!("Failed to read data file: {}", e))?;
-        
+
         log_to_file(&format!("[Storage] Loaded content length: {} bytes", content.len()));
-        
-        let data: AppData = serde_json::from_str(&content)
+
+        let mut data: AppData = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse data file: {}", e))?;
-        
-        log_to_file(&format!("[Storage] Successfully loaded {} collections, {} history items", 
-                 data.collections.len(), data.history.len()));
-        
+
+        // 如果 environments 为空，添加默认环境
+        if data.environments.is_empty() {
+            data.environments = vec![
+                Environment { id: "dev".to_string(), name: "Development".to_string(), variables: vec![] },
+                Environment { id: "test".to_string(), name: "Testing".to_string(), variables: vec![] },
+                Environment { id: "prod".to_string(), name: "Production".to_string(), variables: vec![] },
+            ];
+            data.current_environment_id = Some("dev".to_string());
+        }
+
+        log_to_file(&format!("[Storage] Successfully loaded {} collections, {} history items, {} environments",
+                 data.collections.len(), data.history.len(), data.environments.len()));
+
         Ok(data)
     }
 
     /// 保存数据
     pub fn save_data(&self, data: &AppData) -> Result<(), String> {
         let file_path = self.get_data_file_path();
-        
+
         log_to_file(&format!("[Storage] Saving data to: {:?}", file_path));
-        log_to_file(&format!("[Storage] Saving {} collections, {} history items", 
-                 data.collections.len(), data.history.len()));
+        log_to_file(&format!("[Storage] Saving {} collections, {} history items, {} environments",
+                 data.collections.len(), data.history.len(), data.environments.len()));
         
         // 先写入临时文件，防止写入过程中出错导致数据损坏
         let temp_path = file_path.with_extension("tmp");
