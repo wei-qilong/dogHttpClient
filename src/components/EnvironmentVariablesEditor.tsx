@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   PlusOutlined,
   DeleteOutlined,
   EditOutlined,
   CheckOutlined,
   CloseOutlined,
-  CheckCircleFilled,
-  GlobalOutlined
+  CheckCircleFilled
 } from '@ant-design/icons';
 import {
   Button,
@@ -27,12 +26,12 @@ const genId = () => Math.random().toString(36).substring(2, 10);
 
 // 主内容区域的环境变量编辑器
 export function EnvironmentVariablesEditor() {
-  const { environments, currentEnvironmentId, setCurrentEnvironmentId } = useAppStore();
-  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(currentEnvironmentId);
+  const { environments, currentEnvironmentId } = useAppStore();
   const [newVar, setNewVar] = useState<{ key: string; value: string }>({ key: '', value: '' });
   const [editingVar, setEditingVar] = useState<KeyValuePair | null>(null);
 
-  const selectedEnv = selectedEnvId ? environments.find(e => e.id === selectedEnvId) : null;
+  // 直接使用当前激活的环境
+  const selectedEnv = currentEnvironmentId ? environments.find(e => e.id === currentEnvironmentId) : null;
 
   // 检查 key 是否已存在
   const isKeyExists = (key: string, excludeId?: string) => {
@@ -212,119 +211,96 @@ export function EnvironmentVariablesEditor() {
     },
   ];
 
+  if (!selectedEnv) {
+    return (
+      <div style={{
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#94A3B8',
+        fontSize: 14
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p>No environment selected</p>
+          <p style={{ fontSize: 12 }}>Click an environment in the sidebar to view and edit variables</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* 环境选择器 */}
-      <div style={{ marginBottom: 16 }}>
-        <Space size={8} wrap>
-          {environments.map(env => (
-            <Button
-              key={env.id}
-              size="small"
-              type={selectedEnvId === env.id ? 'primary' : 'default'}
-              icon={<GlobalOutlined />}
-              onClick={() => setSelectedEnvId(env.id)}
-              style={selectedEnvId === env.id ? { background: '#6366F1', borderColor: '#6366F1' } : {}}
-            >
-              {env.name}
-              {currentEnvironmentId === env.id && <CheckCircleFilled style={{ marginLeft: 4, fontSize: 10 }} />}
-            </Button>
-          ))}
-        </Space>
+      {/* 环境标题 */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16
+      }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16, color: '#1E293B' }}>
+            {selectedEnv.name}
+            <Tag color="success" icon={<CheckCircleFilled />} style={{ marginLeft: 8 }}>Active</Tag>
+          </h3>
+          <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748B' }}>
+            {selectedEnv.variables.length} variables
+          </p>
+        </div>
       </div>
 
-      {selectedEnv ? (
-        <>
-          {/* 环境标题 */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16
-          }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16, color: '#1E293B' }}>{selectedEnv.name}</h3>
-              <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748B' }}>
-                {selectedEnv.variables.length} variables
-              </p>
-            </div>
-            <Space>
-              {currentEnvironmentId === selectedEnv.id ? (
-                <Tag color="success" icon={<CheckCircleFilled />}>Active</Tag>
-              ) : (
-                <Button type="primary" onClick={() => setCurrentEnvironmentId(selectedEnv.id)} style={{ background: '#6366F1' }}>
-                  Activate
-                </Button>
-              )}
-            </Space>
-          </div>
-
-          {/* 添加新变量 */}
-          <Card size="small" style={{ marginBottom: 16 }}>
-            <Row gutter={12} align="middle">
-              <Col span={8}>
-                <Input
-                  placeholder="Variable name (e.g., baseUrl)"
-                  value={newVar.key}
-                  onChange={e => setNewVar({ ...newVar, key: e.target.value })}
-                  onPressEnter={handleAddVar}
-                  prefix={<code style={{ color: '#6366F1' }}>{'{{'}</code>}
-                  suffix={<code style={{ color: '#6366F1' }}>{'}}'}</code>}
-                />
-              </Col>
-              <Col span={12}>
-                <Input
-                  placeholder="Variable value"
-                  value={newVar.value}
-                  onChange={e => setNewVar({ ...newVar, value: e.target.value })}
-                  onPressEnter={handleAddVar}
-                />
-              </Col>
-              <Col span={4}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddVar} block style={{ background: '#6366F1' }}>
-                  Add
-                </Button>
-              </Col>
-            </Row>
-          </Card>
-
-          {/* 变量列表 */}
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <Table
-              size="small"
-              columns={columns}
-              dataSource={selectedEnv.variables}
-              rowKey="id"
-              pagination={false}
-              locale={{ emptyText: 'No variables yet. Add one above.' }}
+      {/* 添加新变量 */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Row gutter={12} align="middle">
+          <Col span={8}>
+            <Input
+              placeholder="Variable name (e.g., baseUrl)"
+              value={newVar.key}
+              onChange={e => setNewVar({ ...newVar, key: e.target.value })}
+              onPressEnter={handleAddVar}
+              prefix={<code style={{ color: '#6366F1' }}>{'{{'}</code>}
+              suffix={<code style={{ color: '#6366F1' }}>{'}}'}</code>}
             />
-          </div>
+          </Col>
+          <Col span={12}>
+            <Input
+              placeholder="Variable value"
+              value={newVar.value}
+              onChange={e => setNewVar({ ...newVar, value: e.target.value })}
+              onPressEnter={handleAddVar}
+            />
+          </Col>
+          <Col span={4}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddVar} block style={{ background: '#6366F1' }}>
+              Add
+            </Button>
+          </Col>
+        </Row>
+      </Card>
 
-          {/* 使用说明 */}
-          <div style={{
-            marginTop: 16,
-            padding: 12,
-            background: '#F8FAFC',
-            borderRadius: 6,
-            fontSize: 12,
-            color: '#64748B'
-          }}>
-            <strong>Usage:</strong> Reference variables using {'{{variableName}}'} in URLs, headers, or body.
-            {currentEnvironmentId === selectedEnv.id && ' This environment is currently active.'}
-          </div>
-        </>
-      ) : (
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#94A3B8',
-          fontSize: 14
-        }}>
-          Select an environment above to edit variables
-        </div>
-      )}
+      {/* 变量列表 */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        <Table
+          size="small"
+          columns={columns}
+          dataSource={selectedEnv.variables}
+          rowKey="id"
+          pagination={false}
+          locale={{ emptyText: 'No variables yet. Add one above.' }}
+        />
+      </div>
+
+      {/* 使用说明 */}
+      <div style={{
+        marginTop: 16,
+        padding: 12,
+        background: '#F8FAFC',
+        borderRadius: 6,
+        fontSize: 12,
+        color: '#64748B'
+      }}>
+        <strong>Usage:</strong> Reference variables using {'{{variableName}}'} in URLs, headers, or body.
+      </div>
     </div>
   );
 }

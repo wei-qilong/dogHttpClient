@@ -336,18 +336,16 @@ function App() {
             <EnvironmentVariablesEditor />
           ) : (
             <>
-              {/* Request Section */}
-              <div style={{ 
-                flex: 1, 
-                overflow: 'auto',
+              {/* 固定的地址栏区域 */}
+              <div style={{
                 background: '#FFFFFF',
-                borderBottom: '1px solid #E2E8F0'
+                borderBottom: '1px solid #E2E8F0',
+                flexShrink: 0
               }}>
                 {/* Breadcrumb & Actions Bar */}
-                <div style={{ 
+                <div style={{
                   padding: '12px 16px',
                   borderBottom: '1px solid #E2E8F0',
-                  background: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8
@@ -477,15 +475,23 @@ function App() {
                 />
               </Tooltip>
             </div>
+          </div>
 
-            {/* Request Panel */}
+          {/* Request Panel - 可滚动 */}
+          <div style={{ 
+            flex: '1 1 0', 
+            overflow: 'auto',
+            background: '#FFFFFF',
+            minHeight: 0
+          }}>
             <RequestPanel onParamsChange={handleParamsChange} />
           </div>
+        </div>
 
-          {/* Response Section */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <ResponsePanel />
-          </div>
+        {/* Response Section - 可滚动 */}
+        <div style={{ flex: '1 1 0', overflow: 'auto', minHeight: 0 }}>
+          <ResponsePanel />
+        </div>
             </>
           )}
         </Content>

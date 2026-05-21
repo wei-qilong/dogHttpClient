@@ -127,9 +127,6 @@ export function SidebarContent() {
               <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} onClick={() => setShowNewCollection(true)} />
             </Tooltip>
           )}
-          {sidebarActiveTab === 'environments' && (
-            <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} />
-          )}
         </Space>
       </div>
 
