@@ -154,7 +154,10 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
 
   const updateParams = (newParams: KeyValuePair[]) => {
     // 过滤掉空行（key 和 value 都为空）
-    const validParams = newParams.filter(p => p.key !== '' || p.value !== '');
+    const validParams = newParams
+      .filter(p => p.key !== '' || p.value !== '')
+      // 如果 param 的 ID 与空行 ID 相同，分配新 ID 避免冲突
+      .map(p => p.id === emptyRowId ? { ...p, id: generateId() } : p);
     // 通过 onParamsChange 统一更新 params 和 URL，避免两次 store 更新冲突
     if (onParamsChange) {
       onParamsChange(validParams);
