@@ -155,12 +155,12 @@ function ParamsTab() {
   // 空行只用于显示，不存储在 localParams 中
   const displayParams = [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }];
 
-  // 判断是否是最后一行的空行
-  const isLastRow = (index: number) => index === displayParams.length - 1;
+  // 判断是否是空行（通过 record.id 判断）
+  const isEmptyRow = (record: KeyValuePair) => record.id === emptyRowId;
 
   // 只在 blur 或 enter 时同步到 store
   const syncToStore = (newParams: KeyValuePair[]) => {
-    // 过滤掉空行（key 和 value 都为空），但保留最后一行的空行用于继续输入
+    // 过滤掉空行（key 和 value 都为空）
     const validParams = newParams
       .filter(p => p.key !== '' || p.value !== '')
       // 如果 param 的 ID 与空行 ID 相同，分配新 ID 避免冲突
@@ -173,15 +173,16 @@ function ParamsTab() {
     {
       title: '',
       width: 32,
-      render: (_text: string, record: KeyValuePair, index: number) => (
+      render: (_text: string, record: KeyValuePair) => (
         <Switch 
           size="small" 
           checked={record.enabled}
+          disabled={isEmptyRow(record)}
           onChange={(checked) => {
-            if (isLastRow(index)) return; // 最后一行的开关不可用
-            const newParams = [...localParams];
-            const actualIndex = index;
-            newParams[actualIndex] = { ...newParams[actualIndex], enabled: checked };
+            if (isEmptyRow(record)) return;
+            const newParams = localParams.map(p => 
+              p.id === record.id ? { ...p, enabled: checked } : p
+            );
             syncToStore(newParams);
           }}
         />
@@ -191,19 +192,20 @@ function ParamsTab() {
       title: 'KEY',
       dataIndex: 'key',
       width: '30%',
-      render: (text: string, _record: KeyValuePair, index: number) => (
+      render: (text: string, record: KeyValuePair) => (
         <Input
           placeholder="Key"
           value={text}
           onChange={(e) => {
-            if (isLastRow(index)) {
-              // 最后一行的 key 输入：添加到 localParams
+            if (isEmptyRow(record)) {
+              // 空行的 key 输入：添加到 localParams
               const newParams = [...localParams, { id: generateId(), key: e.target.value, value: '', description: '', enabled: true }];
               setLocalParams(newParams);
             } else {
               // 更新现有行
-              const newParams = [...localParams];
-              newParams[index] = { ...newParams[index], key: e.target.value };
+              const newParams = localParams.map(p => 
+                p.id === record.id ? { ...p, key: e.target.value } : p
+              );
               setLocalParams(newParams);
             }
           }}
@@ -222,14 +224,15 @@ function ParamsTab() {
       title: 'VALUE',
       dataIndex: 'value',
       width: '30%',
-      render: (text: string, _record: KeyValuePair, index: number) => (
+      render: (text: string, record: KeyValuePair) => (
         <Input
           placeholder="Value"
           value={text}
           onChange={(e) => {
-            if (isLastRow(index)) return; // 最后一行的 value 输入通过 key 的 onChange 处理
-            const newParams = [...localParams];
-            newParams[index] = { ...newParams[index], value: e.target.value };
+            if (isEmptyRow(record)) return; // 最后一行的 value 输入通过 key 的 onChange 处理
+            const newParams = localParams.map(p => 
+              p.id === record.id ? { ...p, value: e.target.value } : p
+            );
             setLocalParams(newParams);
           }}
           onBlur={() => {
@@ -246,14 +249,15 @@ function ParamsTab() {
     {
       title: 'DESCRIPTION',
       dataIndex: 'description',
-      render: (text: string, _record: KeyValuePair, index: number) => (
+      render: (text: string, record: KeyValuePair) => (
         <Input
           placeholder="Description"
           value={text || ''}
           onChange={(e) => {
-            if (isLastRow(index)) return;
-            const newParams = [...localParams];
-            newParams[index] = { ...newParams[index], description: e.target.value };
+            if (isEmptyRow(record)) return;
+            const newParams = localParams.map(p => 
+              p.id === record.id ? { ...p, description: e.target.value } : p
+            );
             setLocalParams(newParams);
           }}
           onBlur={() => {
