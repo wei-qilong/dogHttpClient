@@ -486,13 +486,12 @@ function App() {
           }}>
             <RequestPanel onParamsChange={handleParamsChange} />
           </div>
-        </div>
 
-        {/* Response Section - 可滚动 */}
-        <div style={{ flex: '1 1 0', overflow: 'auto', minHeight: 0 }}>
-          <ResponsePanel />
-        </div>
-            </>
+          {/* Response Section - 可滚动 */}
+          <div style={{ flex: '1 1 0', overflow: 'auto', minHeight: 0 }}>
+            <ResponsePanel />
+          </div>
+        </>
           )}
         </Content>
       </Layout>
