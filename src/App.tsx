@@ -168,7 +168,7 @@ function App() {
 
   // 处理URL变化 - 始终解析已完成参数到params
   const handleUrlChange = (newUrl: string) => {
-    // 检查这个 URL 变更是否是由 handleParamsChange 触发的
+    // 检查这个 URL 变更是否是由 params 触发的
     // 方法：比较"当前 params 会生成的 URL"与"新 URL"，如果一致则跳过 params 解析
     const currentState = useAppStore.getState();
     const currentBaseUrl = (currentState.currentRequest.url || '').split('?')[0] || '';
@@ -237,16 +237,37 @@ function App() {
     setCurrentRequest({ url: newUrl, params }, undefined, true);
   };
 
-  // 处理params变化 - 反向同步到URL
-  const handleParamsChange = (newParams: KeyValuePair[]) => {
-    // 使用 getState 获取最新 URL，避免闭包问题
-    const latestUrl = useAppStore.getState().currentRequest.url;
-    const baseUrl = latestUrl.split('?')[0] || '';
-    const queryString = paramsToQueryString(newParams);
-    const newUrl = baseUrl + queryString;
-    
-    setCurrentRequest({ url: newUrl, params: newParams }, undefined, true);
-  };
+  // 监听 params 变化，异步同步更新 URL（useEffect 方式，避免每次按键都更新）
+  const prevParamsRef = { current: currentRequest.params };
+  useEffect(() => {
+    const prevParams = prevParamsRef.current;
+    const currParams = currentRequest.params;
+
+    // 比较 params 是否真正变化（引用变化或内容变化）
+    if (prevParams !== currParams) {
+      prevParamsRef.current = currParams;
+
+      const enabledParams = currParams.filter(p => p.enabled && p.key);
+
+      // 从当前 URL 中提取基础 URL（去掉 query 部分）
+      const baseUrl = currentRequest.url.split('?')[0] || '';
+
+      if (enabledParams.length > 0) {
+        const queryString = enabledParams
+          .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+          .join('&');
+        const newUrl = `${baseUrl}?${queryString}`;
+        if (newUrl !== currentRequest.url) {
+          setCurrentRequest({ url: newUrl }, undefined, true);
+        }
+      } else {
+        // 没有参数时，URL 不应该有 ?
+        if (currentRequest.url.includes('?')) {
+          setCurrentRequest({ url: baseUrl }, undefined, true);
+        }
+      }
+    }
+  }, [currentRequest.params, currentRequest.url, setCurrentRequest]);
 
   const methodItems = methods.map(m => ({
     key: m,
@@ -484,7 +505,7 @@ function App() {
             background: '#FFFFFF',
             minHeight: 0
           }}>
-            <RequestPanel onParamsChange={handleParamsChange} />
+            <RequestPanel />
           </div>
 
           {/* Response Section - 可滚动 */}
