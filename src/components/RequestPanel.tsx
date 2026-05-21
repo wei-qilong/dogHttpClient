@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons';
 import { 
   Button, 
@@ -134,36 +134,37 @@ export function RequestPanel({ onParamsChange }: RequestPanelProps = {}) {
 }
 
 // Params 标签页 - 绑定到 store
-interface ParamsTabProps {
-  onParamsChange?: (params: KeyValuePair[]) => void;
-}
-
-function ParamsTab({ onParamsChange }: ParamsTabProps) {
+function ParamsTab() {
   const { currentRequest, setCurrentRequest } = useAppStore();
   
   // 确保 params 数组存在，如果不存在则初始化为空数组
   const params = currentRequest.params || [];
   
+  // 使用本地 state 存储显示数据，避免每次按键都更新 store
+  const [localParams, setLocalParams] = useState<KeyValuePair[]>(params);
+  
+  // 当 store 中的 params 变化时（如切换请求），同步本地 state
+  useEffect(() => {
+    setLocalParams(params);
+  }, [params]);
+
   // 稳定的空行 ID，避免每次渲染重新生成导致输入框失焦
   const emptyRowId = useMemo(() => generateId(), []);
   
   // 显示用的数据（添加空行用于输入）
-  const displayParams = params.length > 0 
-    ? [...params, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
+  const displayParams = localParams.length > 0 
+    ? [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
     : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
 
-  const updateParams = (newParams: KeyValuePair[]) => {
+  // 只在 blur 或 enter 时同步到 store
+  const syncToStore = (newParams: KeyValuePair[]) => {
     // 过滤掉空行（key 和 value 都为空）
     const validParams = newParams
       .filter(p => p.key !== '' || p.value !== '')
       // 如果 param 的 ID 与空行 ID 相同，分配新 ID 避免冲突
       .map(p => p.id === emptyRowId ? { ...p, id: generateId() } : p);
-    // 通过 onParamsChange 统一更新 params 和 URL，避免两次 store 更新冲突
-    if (onParamsChange) {
-      onParamsChange(validParams);
-    } else {
-      setCurrentRequest({ params: validParams });
-    }
+    setLocalParams(validParams);
+    setCurrentRequest({ params: validParams });
   };
 
   const columns = [
@@ -177,7 +178,7 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
           onChange={(checked) => {
             const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], enabled: checked };
-            updateParams(newParams);
+            syncToStore(newParams);
           }}
         />
       ),
@@ -193,7 +194,15 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
           onChange={(e) => {
             const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], key: e.target.value };
-            updateParams(newParams);
+            setLocalParams(newParams);
+          }}
+          onBlur={() => {
+            // blur 时同步到 store
+            syncToStore(displayParams);
+          }}
+          onPressEnter={() => {
+            // 聚焦到下一个输入框或添加新行
+            syncToStore(displayParams);
           }}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
@@ -211,7 +220,13 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
           onChange={(e) => {
             const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], value: e.target.value };
-            updateParams(newParams);
+            setLocalParams(newParams);
+          }}
+          onBlur={() => {
+            syncToStore(displayParams);
+          }}
+          onPressEnter={() => {
+            syncToStore(displayParams);
           }}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
@@ -228,7 +243,13 @@ function ParamsTab({ onParamsChange }: ParamsTabProps) {
           onChange={(e) => {
             const newParams = [...displayParams];
             newParams[index] = { ...newParams[index], description: e.target.value };
-            updateParams(newParams);
+            setLocalParams(newParams);
+          }}
+          onBlur={() => {
+            syncToStore(displayParams);
+          }}
+          onPressEnter={() => {
+            syncToStore(displayParams);
           }}
           bordered={false}
           style={{ background: 'transparent', color: '#94A3B8', fontSize: 12 }}
