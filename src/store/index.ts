@@ -170,13 +170,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   // 保存所有脏请求：将当前请求写回 collection（如果不在任何 collection 中则添加到 default），然后持久化
   saveAllDirty: () => {
+    console.log('[Save] === saveAllDirty called ===');
     const state = get();
-    if (state.dirtyRequestIds.size === 0) return;
+    console.log('[Save] dirtyRequestIds size:', state.dirtyRequestIds.size);
+    console.log('[Save] currentRequest id:', state.currentRequest.id);
     
+    if (state.dirtyRequestIds.size === 0) {
+      console.log('[Save] No dirty requests, returning');
+      return;
+    }
+    
+    console.log('[Save] Processing collections...');
     let updatedCollections = state.collections.map(col => ({
       ...col,
       requests: col.requests.map(req => {
         if (state.dirtyRequestIds.has(req.id) && req.id === state.currentRequest.id) {
+          console.log('[Save] Updating request in collection:', req.id);
           return { ...state.currentRequest };
         }
         return req;
@@ -188,7 +197,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const existsInAny = updatedCollections.some(c => 
         c.requests.some(r => r.id === state.currentRequest.id)
       );
+      console.log('[Save] Current request exists in collections:', existsInAny);
       if (!existsInAny) {
+        console.log('[Save] Adding current request to default collection');
         updatedCollections = updatedCollections.map(col => {
           if (col.name === 'default') {
             return { ...col, requests: [...col.requests, { ...state.currentRequest }] };
@@ -199,23 +210,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     
     // 清除所有脏标记
+    console.log('[Save] Clearing dirty marks and updating state');
     set({
       collections: updatedCollections,
       dirtyRequestIds: new Set<string>(),
     });
     
     // 立即持久化
+    console.log('[Save] Preparing data for debouncedSave...');
     const data: AppData = {
       version: '1.0.0',
       collections: updatedCollections,
+      current_request: state.currentRequest,
       history: state.history,
       environments: state.environments,
       currentEnvironmentId: state.currentEnvironmentId,
       settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
-    debouncedSave(data, 0).catch(err => {
-      console.error('[Storage] Save failed:', err);
+    console.log('[Save] Calling debouncedSave with delay 0...');
+    debouncedSave(data, 0).then(() => {
+      console.log('[Save] debouncedSave completed successfully');
+    }).catch(err => {
+      console.error('[Save] debouncedSave failed:', err);
     });
+    console.log('[Save] saveAllDirty finished');
   },
   
   // skipDirty 参数：URL/Params 双向绑定时传 true，避免循环标记脏
@@ -427,8 +445,11 @@ let prevEnvironmentsJson = '';
 let prevCurrentEnvId: string | null = null;
 
 useAppStore.subscribe((state) => {
+  console.log('[Save] === Store subscribe triggered ===');
+  console.log('[Save] isInitialized:', state.isInitialized);
+  
   if (!state.isInitialized) {
-    console.log('[Storage] Subscribe skipped: not initialized');
+    console.log('[Save] Subscribe skipped: not initialized');
     return;
   }
 
@@ -441,15 +462,15 @@ useAppStore.subscribe((state) => {
   const environmentsChanged = environmentsJson !== prevEnvironmentsJson;
   const envIdChanged = state.currentEnvironmentId !== prevCurrentEnvId;
 
+  console.log('[Save] Change check:', {
+    collectionsChanged,
+    historyChanged,
+    environmentsChanged,
+    envIdChanged
+  });
+
   if (collectionsChanged || historyChanged || environmentsChanged || envIdChanged) {
-    console.log('[Storage] Change detected:', {
-      collectionsChanged,
-      historyChanged,
-      environmentsChanged,
-      envIdChanged,
-      collectionsCount: state.collections.length,
-      environmentsCount: state.environments.length,
-    });
+    console.log('[Save] Change detected, updating prev values and triggering save...');
 
     prevCollectionsJson = collectionsJson;
     prevHistoryJson = historyJson;
@@ -466,9 +487,13 @@ useAppStore.subscribe((state) => {
       settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
 
-    console.log('[Storage] Triggering auto-save...');
-    debouncedSave(data, 1000).catch(err => {
-      console.error('[Storage] Auto-save failed:', err);
+    console.log('[Save] Triggering auto-save with 1000ms delay...');
+    debouncedSave(data, 1000).then(() => {
+      console.log('[Save] Auto-save completed successfully');
+    }).catch(err => {
+      console.error('[Save] Auto-save failed:', err);
     });
+  } else {
+    console.log('[Save] No changes detected, skipping save');
   }
 });

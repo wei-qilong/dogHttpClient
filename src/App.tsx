@@ -163,8 +163,13 @@ function App() {
 
   // 保存请求 - 使用 store 中的 saveAllDirty 统一处理
   const handleSave = () => {
-    const { saveAllDirty } = useAppStore.getState();
+    console.log('[Save] === Save button clicked ===');
+    const { saveAllDirty, dirtyRequestIds, collections } = useAppStore.getState();
+    console.log('[Save] Current collections count:', collections.length);
+    console.log('[Save] Dirty request IDs:', Array.from(dirtyRequestIds));
+    console.log('[Save] Calling saveAllDirty...');
     saveAllDirty();
+    console.log('[Save] saveAllDirty returned');
   };
 
   // 处理URL变化 - 始终解析已完成参数到params

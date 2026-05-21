@@ -111,21 +111,32 @@ export async function loadData(): Promise<AppData> {
 
 // 保存数据
 export async function saveData(data: AppData): Promise<void> {
+  console.log('[Save] === saveData called ===');
+  console.log('[Save] isTauri:', isTauri);
+  console.log('[Save] window.__TAURI__:', typeof window !== 'undefined' ? !!window.__TAURI__ : 'N/A');
+  
   // Tauri 环境
   if (isTauri) {
+    console.log('[Save] Using Tauri invoke cmd_save_data...');
     try {
+      console.log('[Save] Invoking cmd_save_data with data:', {
+        collections: data.collections.length,
+        history: data.history.length,
+        environments: data.environments.length
+      });
       await invoke('cmd_save_data', { data });
-      console.log('[Storage] Data saved via Tauri');
+      console.log('[Save] cmd_save_data completed successfully');
       return;
     } catch (error) {
-      console.error('[Storage] Failed to save via Tauri:', error);
+      console.error('[Save] Failed to save via Tauri:', error);
       throw error;
     }
   }
 
   // 浏览器环境：使用 localStorage
-  console.log('[Storage] Saving in browser, using localStorage');
+  console.log('[Save] Not in Tauri, using localStorage');
   saveToLocalStorage(data);
+  console.log('[Save] localStorage save completed');
 }
 
 // 创建备份（在浏览器环境下，返回空字符串）
@@ -215,20 +226,29 @@ export async function getDataDirectory(): Promise<string> {
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function debouncedSave(data: AppData, delay = 1000): Promise<void> {
-  console.log('[Storage] debouncedSave called, delay:', delay, 'isTauri:', isTauri);
+  console.log('[Save] === debouncedSave called ===');
+  console.log('[Save] delay:', delay, 'isTauri:', isTauri);
+  console.log('[Save] data stats:', {
+    collections: data.collections.length,
+    history: data.history.length,
+    environments: data.environments.length,
+    hasCurrentRequest: !!data.current_request
+  });
   return new Promise((resolve, reject) => {
     if (saveTimeout) {
+      console.log('[Save] Clearing previous timeout');
       clearTimeout(saveTimeout);
     }
     
+    console.log('[Save] Setting timeout for', delay, 'ms');
     saveTimeout = setTimeout(async () => {
       try {
-        console.log('[Storage] debouncedSave executing saveData...');
+        console.log('[Save] Timeout fired, executing saveData...');
         await saveData(data);
-        console.log('[Storage] debouncedSave completed successfully');
+        console.log('[Save] saveData completed, resolving promise');
         resolve();
       } catch (error) {
-        console.error('[Storage] debouncedSave failed:', error);
+        console.error('[Save] saveData failed:', error);
         reject(error);
       }
     }, delay);
