@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   GlobalOutlined,
   PlusOutlined,
@@ -27,13 +27,25 @@ const genId = () => Math.random().toString(36).substring(2, 10);
 
 export function EnvironmentPanel() {
   const { environments, currentEnvironmentId, setCurrentEnvironmentId } = useAppStore();
-  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(currentEnvironmentId);
+  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
   const [showNewEnv, setShowNewEnv] = useState(false);
   const [newEnvName, setNewEnvName] = useState('');
   const [editingEnvId, setEditingEnvId] = useState<string | null>(null);
   const [editEnvName, setEditEnvName] = useState('');
 
-  const selectedEnv = environments.find(e => e.id === selectedEnvId);
+  // 同步 selectedEnvId 和 currentEnvironmentId
+  useEffect(() => {
+    // 如果没有选中任何env，选中当前激活的
+    if (!selectedEnvId && currentEnvironmentId) {
+      setSelectedEnvId(currentEnvironmentId);
+    }
+    // 如果选中的env被删除了，选中当前激活的
+    if (selectedEnvId && !environments.find(e => e.id === selectedEnvId)) {
+      setSelectedEnvId(currentEnvironmentId);
+    }
+  }, [selectedEnvId, currentEnvironmentId, environments]);
+
+  const selectedEnv = selectedEnvId ? environments.find(e => e.id === selectedEnvId) : null;
 
   // 新增环境
   const handleAddEnv = () => {
@@ -52,7 +64,8 @@ export function EnvironmentPanel() {
       variables: [],
     };
     useAppStore.setState(state => ({
-      environments: [...state.environments, newEnv]
+      environments: [...state.environments, newEnv],
+      currentEnvironmentId: newEnv.id // 自动激活新创建的环境
     }));
     setNewEnvName('');
     setShowNewEnv(false);

@@ -85,12 +85,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentResponse: null,
   isLoading: false,
   collections: [],
-  environments: [
-    { id: 'dev', name: 'Development', variables: [] },
-    { id: 'test', name: 'Testing', variables: [] },
-    { id: 'prod', name: 'Production', variables: [] },
-  ],
-  currentEnvironmentId: 'dev',
+  environments: [], // 初始为空，等 initFromStorage 加载
+  currentEnvironmentId: null,
   history: [],
   isInitialized: false,
   dirtyRequestIds: new Set<string>(),
@@ -100,13 +96,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeTab: 'params',
   responseTab: 'body',
   bodyTab: 'pretty',
-  
+
   // 从本地存储初始化数据
   initFromStorage: async () => {
     if (get().isInitialized) return;
 
     try {
       const data = await loadData();
+      console.log('[Storage] Loaded data:', {
+        collections: data.collections?.length,
+        environments: data.environments?.length,
+        history: data.history?.length
+      });
 
       // 确保 default collection 存在
       let collections = data.collections || [];
@@ -119,7 +120,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
       }
 
-      // 加载 environments，如果没有则使用默认值
+      // 加载 environments，使用默认值或已保存的数据
       const environments = data.environments?.length > 0 ? data.environments : [
         { id: 'dev', name: 'Development', variables: [] },
         { id: 'test', name: 'Testing', variables: [] },
@@ -417,16 +418,29 @@ let prevEnvironmentsJson = '';
 let prevCurrentEnvId: string | null = null;
 
 useAppStore.subscribe((state) => {
-  if (!state.isInitialized) return;
+  if (!state.isInitialized) {
+    console.log('[Storage] Subscribe skipped: not initialized');
+    return;
+  }
 
   const collectionsJson = JSON.stringify(state.collections);
   const historyJson = JSON.stringify(state.history);
   const environmentsJson = JSON.stringify(state.environments);
 
-  if (collectionsJson !== prevCollectionsJson ||
-      historyJson !== prevHistoryJson ||
-      environmentsJson !== prevEnvironmentsJson ||
-      state.currentEnvironmentId !== prevCurrentEnvId) {
+  const collectionsChanged = collectionsJson !== prevCollectionsJson;
+  const historyChanged = historyJson !== prevHistoryJson;
+  const environmentsChanged = environmentsJson !== prevEnvironmentsJson;
+  const envIdChanged = state.currentEnvironmentId !== prevCurrentEnvId;
+
+  if (collectionsChanged || historyChanged || environmentsChanged || envIdChanged) {
+    console.log('[Storage] Change detected:', {
+      collectionsChanged,
+      historyChanged,
+      environmentsChanged,
+      envIdChanged,
+      collectionsCount: state.collections.length,
+      environmentsCount: state.environments.length,
+    });
 
     prevCollectionsJson = collectionsJson;
     prevHistoryJson = historyJson;
@@ -442,6 +456,7 @@ useAppStore.subscribe((state) => {
       settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
 
+    console.log('[Storage] Triggering auto-save...');
     debouncedSave(data, 1000).catch(err => {
       console.error('[Storage] Auto-save failed:', err);
     });
