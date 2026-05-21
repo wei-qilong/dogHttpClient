@@ -132,6 +132,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       set({
         collections,
+        currentRequest: data.current_request || get().currentRequest,
         history: data.history || [],
         environments,
         currentEnvironmentId: data.currentEnvironmentId || 'dev',
@@ -458,6 +459,7 @@ useAppStore.subscribe((state) => {
     const data: AppData = {
       version: '1.0.0',
       collections: state.collections,
+      current_request: state.currentRequest,
       history: state.history,
       environments: state.environments,
       currentEnvironmentId: state.currentEnvironmentId,
