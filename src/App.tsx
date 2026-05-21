@@ -352,7 +352,7 @@ function App() {
                 overflow: 'auto'
               }}
             >
-              <SidebarContent onImportClick={() => setImportModalOpen(true)} />
+              <SidebarContent />
             </Sider>
           </>
         )}

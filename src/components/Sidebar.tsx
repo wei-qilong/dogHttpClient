@@ -9,8 +9,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   CheckOutlined,
-  CloseOutlined,
-  UploadOutlined
+  CloseOutlined
 } from '@ant-design/icons';
 import { 
   Button, 
@@ -103,11 +102,7 @@ export function Sidebar() {
 }
 
 // 侧边栏详细内容
-interface SidebarContentProps {
-  onImportClick?: () => void;
-}
-
-export function SidebarContent({ onImportClick }: SidebarContentProps = {}) {
+export function SidebarContent() {
   const { sidebarActiveTab } = useAppStore();
   const [showNewCollection, setShowNewCollection] = useState(false);
 
@@ -128,14 +123,9 @@ export function SidebarContent({ onImportClick }: SidebarContentProps = {}) {
         </span>
         <Space size={4}>
           {sidebarActiveTab === 'collections' && (
-            <>
-              <Tooltip title="Import">
-                <Button type="text" size="small" icon={<UploadOutlined />} style={{ color: '#64748B' }} onClick={onImportClick} />
-              </Tooltip>
-              <Tooltip title="New Collection">
-                <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} onClick={() => setShowNewCollection(true)} />
-              </Tooltip>
-            </>
+            <Tooltip title="New Collection">
+              <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} onClick={() => setShowNewCollection(true)} />
+            </Tooltip>
           )}
           {sidebarActiveTab === 'environments' && (
             <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: '#6366F1' }} />
