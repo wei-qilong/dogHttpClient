@@ -7,7 +7,8 @@ import {
   SettingOutlined,
   DownOutlined,
   SendOutlined,
-  SaveOutlined
+  SaveOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import { useAppStore } from './store';
 import { Sidebar, SidebarContent } from './components/Sidebar';
@@ -308,6 +309,22 @@ function App() {
         </Space>
 
         <Space>
+          <Button
+            type="text"
+            icon={<UploadOutlined />}
+            onClick={() => setImportModalOpen(true)}
+            style={{ color: '#64748B' }}
+          >
+            Import
+          </Button>
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={handleNewRequest}
+            style={{ color: '#64748B' }}
+          >
+            New
+          </Button>
           <Button 
             type="text" 
             icon={<SettingOutlined />}
@@ -425,16 +442,6 @@ function App() {
                 )}
               </div>
 
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                <Button 
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleNewRequest}
-                  size="small"
-                >
-                  New
-                </Button>
-              </div>
             </div>
 
             {/* URL 输入区 */}
