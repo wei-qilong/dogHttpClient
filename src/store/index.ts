@@ -204,6 +204,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       version: '1.0.0',
       collections: updatedCollections,
       history: state.history,
+      environments: state.environments,
+      currentEnvironmentId: state.currentEnvironmentId,
       settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
     debouncedSave(data, 0).catch(err => {

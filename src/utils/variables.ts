@@ -1,4 +1,4 @@
-import type { KeyValuePair, Collection, Environment, RequestConfig } from '../types';
+import type { Collection, Environment, RequestConfig } from '../types';
 
 /**
  * 从文本中提取所有变量引用 {{variableName}}
