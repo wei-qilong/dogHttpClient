@@ -212,12 +212,42 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     const requestId = newRequest.id;
     const isEditing = requestId === state.currentRequest.id;
+    const isDirty = !skipDirty && isEditing;
+    
+    // 如果请求变脏，立即同步到 collections 中，触发自动保存
+    let updatedCollections = state.collections;
+    if (isDirty) {
+      // 检查请求是否已存在于某个 collection 中
+      const existsInAny = state.collections.some(c => 
+        c.requests.some(r => r.id === requestId)
+      );
+      
+      if (existsInAny) {
+        // 更新已存在的请求
+        updatedCollections = state.collections.map(col => ({
+          ...col,
+          requests: col.requests.map(req => 
+            req.id === requestId ? { ...newRequest } : req
+          ),
+        }));
+      } else {
+        // 添加到 default collection
+        updatedCollections = state.collections.map(col => {
+          if (col.name === 'default') {
+            return { ...col, requests: [...col.requests, { ...newRequest }] };
+          }
+          return col;
+        });
+      }
+    }
     
     return {
       currentRequest: newRequest,
       ...(collectionId !== undefined && { currentCollectionId: collectionId }),
-      // skipDirty 为 true 时不标记脏（用于 URL/Params 双向绑定）
-      ...(!skipDirty && isEditing && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
+      // 同步更新 collections，触发自动保存
+      ...(isDirty && { collections: updatedCollections }),
+      // 标记为脏
+      ...(isDirty && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
     };
   }),
   
