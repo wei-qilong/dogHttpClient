@@ -151,14 +151,16 @@ function ParamsTab() {
   // 稳定的空行 ID，避免每次渲染重新生成导致输入框失焦
   const emptyRowId = useMemo(() => generateId(), []);
   
-  // 显示用的数据（添加空行用于输入）
-  const displayParams = localParams.length > 0 
-    ? [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
-    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
+  // 显示用的数据：localParams + 一个用于输入的空行
+  // 空行只用于显示，不存储在 localParams 中
+  const displayParams = [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }];
+
+  // 判断是否是最后一行的空行
+  const isLastRow = (index: number) => index === displayParams.length - 1;
 
   // 只在 blur 或 enter 时同步到 store
   const syncToStore = (newParams: KeyValuePair[]) => {
-    // 过滤掉空行（key 和 value 都为空）
+    // 过滤掉空行（key 和 value 都为空），但保留最后一行的空行用于继续输入
     const validParams = newParams
       .filter(p => p.key !== '' || p.value !== '')
       // 如果 param 的 ID 与空行 ID 相同，分配新 ID 避免冲突
@@ -176,8 +178,10 @@ function ParamsTab() {
           size="small" 
           checked={record.enabled}
           onChange={(checked) => {
-            const newParams = [...displayParams];
-            newParams[index] = { ...newParams[index], enabled: checked };
+            if (isLastRow(index)) return; // 最后一行的开关不可用
+            const newParams = [...localParams];
+            const actualIndex = index;
+            newParams[actualIndex] = { ...newParams[actualIndex], enabled: checked };
             syncToStore(newParams);
           }}
         />
@@ -192,17 +196,22 @@ function ParamsTab() {
           placeholder="Key"
           value={text}
           onChange={(e) => {
-            const newParams = [...displayParams];
-            newParams[index] = { ...newParams[index], key: e.target.value };
-            setLocalParams(newParams);
+            if (isLastRow(index)) {
+              // 最后一行的 key 输入：添加到 localParams
+              const newParams = [...localParams, { id: generateId(), key: e.target.value, value: '', description: '', enabled: true }];
+              setLocalParams(newParams);
+            } else {
+              // 更新现有行
+              const newParams = [...localParams];
+              newParams[index] = { ...newParams[index], key: e.target.value };
+              setLocalParams(newParams);
+            }
           }}
           onBlur={() => {
-            // blur 时同步到 store
-            syncToStore(displayParams);
+            syncToStore(localParams);
           }}
           onPressEnter={() => {
-            // 聚焦到下一个输入框或添加新行
-            syncToStore(displayParams);
+            syncToStore(localParams);
           }}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
@@ -218,15 +227,16 @@ function ParamsTab() {
           placeholder="Value"
           value={text}
           onChange={(e) => {
-            const newParams = [...displayParams];
+            if (isLastRow(index)) return; // 最后一行的 value 输入通过 key 的 onChange 处理
+            const newParams = [...localParams];
             newParams[index] = { ...newParams[index], value: e.target.value };
             setLocalParams(newParams);
           }}
           onBlur={() => {
-            syncToStore(displayParams);
+            syncToStore(localParams);
           }}
           onPressEnter={() => {
-            syncToStore(displayParams);
+            syncToStore(localParams);
           }}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
@@ -241,15 +251,16 @@ function ParamsTab() {
           placeholder="Description"
           value={text || ''}
           onChange={(e) => {
-            const newParams = [...displayParams];
+            if (isLastRow(index)) return;
+            const newParams = [...localParams];
             newParams[index] = { ...newParams[index], description: e.target.value };
             setLocalParams(newParams);
           }}
           onBlur={() => {
-            syncToStore(displayParams);
+            syncToStore(localParams);
           }}
           onPressEnter={() => {
-            syncToStore(displayParams);
+            syncToStore(localParams);
           }}
           bordered={false}
           style={{ background: 'transparent', color: '#94A3B8', fontSize: 12 }}
