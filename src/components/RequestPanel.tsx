@@ -837,29 +837,180 @@ function UrlEncodedBody() {
 
 // Authorization 标签页
 function AuthTab() {
+  const { currentRequest, setCurrentRequest, collections, currentCollectionId } = useAppStore();
+  
+  const auth = currentRequest.auth || { type: 'inherit' };
+  const currentCollection = collections.find(c => c.id === currentCollectionId);
+  
+  const handleAuthTypeChange = (type: string) => {
+    setCurrentRequest({ 
+      auth: { 
+        ...auth, 
+        type: type as any 
+      } 
+    });
+  };
+
+  const handleAuthFieldChange = (field: string, value: string) => {
+    setCurrentRequest({
+      auth: {
+        ...auth,
+        [field]: value
+      }
+    });
+  };
+
+  // 获取实际使用的auth配置（处理inherit）
+  const effectiveAuth = auth.type === 'inherit' 
+    ? currentCollection?.auth 
+    : auth;
+
   return (
     <div style={{ padding: '16px' }}>
       <div style={{ marginBottom: 16 }}>
         <span style={{ fontSize: 13, color: '#1E293B', marginRight: 12 }}>Type:</span>
-        <Select defaultValue="inherit" style={{ width: 200 }} size="small">
+        <Select 
+          value={auth.type} 
+          onChange={handleAuthTypeChange}
+          style={{ width: 200 }} 
+          size="small"
+        >
           <Select.Option value="inherit">Inherit auth from parent</Select.Option>
           <Select.Option value="none">No Auth</Select.Option>
           <Select.Option value="basic">Basic Auth</Select.Option>
           <Select.Option value="bearer">Bearer Token</Select.Option>
+          <Select.Option value="apikey">API Key</Select.Option>
           <Select.Option value="oauth2">OAuth 2.0</Select.Option>
         </Select>
       </div>
       
-      <div style={{ 
-        padding: '24px',
-        background: '#F8FAFC',
-        borderRadius: 8,
-        textAlign: 'center',
-        color: '#64748B'
-      }}>
-        <p style={{ fontSize: 13, marginBottom: 8 }}>This request is using Basic Auth from collection</p>
-        <p style={{ fontSize: 12, color: '#94A3B8' }}>The authorization header will be automatically generated</p>
-      </div>
+      {/* 根据选择的类型显示不同的配置表单 */}
+      {auth.type === 'inherit' && (
+        <div style={{ 
+          padding: '24px',
+          background: '#F8FAFC',
+          borderRadius: 8,
+          textAlign: 'center',
+          color: '#64748B'
+        }}>
+          <p style={{ fontSize: 13, marginBottom: 8 }}>
+            {effectiveAuth?.type && effectiveAuth.type !== 'none' 
+              ? `This request is using ${effectiveAuth.type} auth from collection "${currentCollection?.name}"`
+              : 'This request is using no auth from collection'
+            }
+          </p>
+          <p style={{ fontSize: 12, color: '#94A3B8' }}>
+            The authorization header will be automatically generated when sending the request
+          </p>
+        </div>
+      )}
+
+      {auth.type === 'none' && (
+        <div style={{ 
+          padding: '24px',
+          background: '#F8FAFC',
+          borderRadius: 8,
+          textAlign: 'center',
+          color: '#64748B'
+        }}>
+          <p style={{ fontSize: 13 }}>This request does not use any authorization</p>
+        </div>
+      )}
+
+      {auth.type === 'basic' && (
+        <div style={{ 
+          padding: '16px',
+          background: '#F8FAFC',
+          borderRadius: 8,
+        }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>Username</div>
+            <Input 
+              value={auth.username || ''} 
+              onChange={e => handleAuthFieldChange('username', e.target.value)}
+              placeholder="Username"
+              size="small"
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>Password</div>
+            <Input.Password 
+              value={auth.password || ''} 
+              onChange={e => handleAuthFieldChange('password', e.target.value)}
+              placeholder="Password"
+              size="small"
+            />
+          </div>
+        </div>
+      )}
+
+      {auth.type === 'bearer' && (
+        <div style={{ 
+          padding: '16px',
+          background: '#F8FAFC',
+          borderRadius: 8,
+        }}>
+          <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>Token</div>
+          <TextArea 
+            value={auth.token || ''} 
+            onChange={e => handleAuthFieldChange('token', e.target.value)}
+            placeholder="Enter your Bearer token"
+            rows={3}
+            style={{ fontSize: 12, fontFamily: 'monospace' }}
+          />
+        </div>
+      )}
+
+      {auth.type === 'apikey' && (
+        <div style={{ 
+          padding: '16px',
+          background: '#F8FAFC',
+          borderRadius: 8,
+        }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>Key</div>
+            <Input 
+              value={auth.apiKeyName || ''} 
+              onChange={e => handleAuthFieldChange('apiKeyName', e.target.value)}
+              placeholder="Key name (e.g., X-API-Key)"
+              size="small"
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>Value</div>
+            <Input 
+              value={auth.apiKey || ''} 
+              onChange={e => handleAuthFieldChange('apiKey', e.target.value)}
+              placeholder="API Key value"
+              size="small"
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>Add to</div>
+            <Radio.Group 
+              value={auth.apiKeyLocation || 'header'} 
+              onChange={e => handleAuthFieldChange('apiKeyLocation', e.target.value)}
+              size="small"
+            >
+              <Radio.Button value="header">Header</Radio.Button>
+              <Radio.Button value="query">Query Params</Radio.Button>
+            </Radio.Group>
+          </div>
+        </div>
+      )}
+
+      {auth.type === 'oauth2' && (
+        <div style={{ 
+          padding: '24px',
+          background: '#F8FAFC',
+          borderRadius: 8,
+          textAlign: 'center',
+          color: '#64748B'
+        }}>
+          <p style={{ fontSize: 13 }}>OAuth 2.0 configuration coming soon</p>
+          <p style={{ fontSize: 12, color: '#94A3B8' }}>Please use Bearer Token as a workaround</p>
+        </div>
+      )}
     </div>
   );
 }
