@@ -16,6 +16,7 @@ import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
 import { EnvironmentVariablesEditor } from './components/EnvironmentVariablesEditor';
+import { CollectionSettings } from './components/CollectionSettings';
 import type { HttpMethod, KeyValuePair } from './types';
 
 const { Header, Sider, Content } = Layout;
@@ -43,7 +44,7 @@ function App() {
   const { 
     sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, 
     isLoading, collections, currentCollectionId, initFromStorage, dirtyRequestIds,
-    sidebarActiveTab
+    sidebarActiveTab, currentEditingCollectionId
   } = useAppStore();
 
   // 启动时从本地存储加载数据
@@ -352,7 +353,10 @@ function App() {
 
         {/* Main Content */}
         <Content style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {sidebarActiveTab === 'environments' ? (
+          {currentEditingCollectionId ? (
+            /* Collection Settings - 全屏展示 */
+            <CollectionSettings />
+          ) : sidebarActiveTab === 'environments' ? (
             /* Environment Variables Editor - 全屏展示 */
             <EnvironmentVariablesEditor />
           ) : (

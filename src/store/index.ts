@@ -43,6 +43,7 @@ interface AppState {
   activeTab: 'params' | 'auth' | 'headers' | 'body' | 'scripts';
   responseTab: 'body' | 'cookies' | 'headers' | 'tests';
   bodyTab: 'pretty' | 'raw' | 'preview';
+  currentEditingCollectionId: string | null; // 当前正在编辑设置的 Collection ID
   
   // Actions
   initFromStorage: () => Promise<void>;
@@ -59,6 +60,7 @@ interface AppState {
   addToHistory: (item: HistoryItem) => void;
   sendRequest: () => Promise<void>;
   setCurrentEnvironmentId: (id: string | null) => void;
+  setCurrentEditingCollectionId: (id: string | null) => void;
 }
 
 const createDefaultRequest = (): RequestConfig => ({
@@ -93,6 +95,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarVisible: true,
   sidebarActiveTab: 'collections',
   currentCollectionId: null,
+  currentEditingCollectionId: null,
   activeTab: 'params',
   responseTab: 'body',
   bodyTab: 'pretty',
@@ -282,6 +285,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBodyTab: (tab) => set({ bodyTab: tab }),
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
   setCurrentEnvironmentId: (id) => set({ currentEnvironmentId: id }),
+  setCurrentEditingCollectionId: (id) => set({ currentEditingCollectionId: id }),
 
   addToHistory: (item) => set((state) => ({
     history: [item, ...state.history.slice(0, 99)],

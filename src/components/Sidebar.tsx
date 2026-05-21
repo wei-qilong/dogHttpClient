@@ -9,7 +9,8 @@ import {
   DeleteOutlined,
   EditOutlined,
   CheckOutlined,
-  CloseOutlined
+  CloseOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import {
   Button,
@@ -342,6 +343,10 @@ function CollectionsPanel({ showNewCollection: showNewCollectionProp, setShowNew
                         </Tooltip>
                         {!isDefault && (
                           <>
+                            <Tooltip title="Settings">
+                              <Button type="text" size="small" icon={<SettingOutlined />} style={{ color: '#94A3B8', fontSize: 11 }}
+                                onClick={() => useAppStore.getState().setCurrentEditingCollectionId(collection.id)} />
+                            </Tooltip>
                             <Tooltip title="Rename">
                               <Button type="text" size="small" icon={<EditOutlined />} style={{ color: '#94A3B8', fontSize: 11 }}
                                 onClick={() => { setEditingColId(collection.id); setEditColName(collection.name); }} />
