@@ -1,5 +1,30 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
 
+// Authorization 类型
+export type AuthType = 'none' | 'inherit' | 'basic' | 'bearer' | 'apikey' | 'oauth2';
+
+export interface AuthConfig {
+  type: AuthType;
+  // Basic Auth
+  username?: string;
+  password?: string;
+  // Bearer Token
+  token?: string;
+  // API Key
+  apiKey?: string;
+  apiKeyLocation?: 'header' | 'query';
+  apiKeyName?: string;
+  // OAuth 2.0
+  oauth2Config?: {
+    grantType: 'authorization_code' | 'client_credentials' | 'password';
+    authUrl?: string;
+    tokenUrl?: string;
+    clientId?: string;
+    clientSecret?: string;
+    scope?: string;
+  };
+}
+
 export interface KeyValuePair {
   id: string;
   key: string;
@@ -26,6 +51,10 @@ export interface RequestConfig {
   binaryFile?: { name: string; type: string; data: string };
   preRequestScript: string;
   testsScript: string;
+  // Authorization 配置
+  auth?: AuthConfig;
+  // Request 级别变量
+  variables?: KeyValuePair[];
 }
 
 export interface ResponseData {
@@ -43,6 +72,10 @@ export interface Collection {
   description?: string;
   requests: RequestConfig[];
   folders: Folder[];
+  // Collection 级别 Authorization
+  auth?: AuthConfig;
+  // Collection 级别 Variables
+  variables?: KeyValuePair[];
 }
 
 export interface Folder {

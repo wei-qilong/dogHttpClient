@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import type { RequestConfig, ResponseData, Collection, Environment, HistoryItem } from '../types';
 import { loadData, debouncedSave, type AppData } from '../services/storage';
+import { processRequestVariables } from '../utils/variables';
+import { getEffectiveAuth, applyAuthToRequest, applyApiKeyToUrl } from '../utils/auth';
 
 // Simple UUID generator for browser compatibility
 const generateId = () => {
@@ -56,6 +58,7 @@ interface AppState {
   toggleSidebar: () => void;
   addToHistory: (item: HistoryItem) => void;
   sendRequest: () => Promise<void>;
+  setCurrentEnvironmentId: (id: string | null) => void;
 }
 
 const createDefaultRequest = (): RequestConfig => ({
@@ -73,6 +76,8 @@ const createDefaultRequest = (): RequestConfig => ({
   bodyRawType: 'json',
   preRequestScript: '',
   testsScript: '',
+  auth: { type: 'inherit' }, // 默认继承 Collection 的 Auth
+  variables: [],
 });
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -258,23 +263,39 @@ export const useAppStore = create<AppState>((set, get) => ({
   setResponseTab: (tab) => set({ responseTab: tab }),
   setBodyTab: (tab) => set({ bodyTab: tab }),
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
-  
+  setCurrentEnvironmentId: (id) => set({ currentEnvironmentId: id }),
+
   addToHistory: (item) => set((state) => ({
     history: [item, ...state.history.slice(0, 99)],
   })),
   
   sendRequest: async () => {
     const state = useAppStore.getState();
-    const { currentRequest } = state;
+    const { currentRequest, collections, currentCollectionId, environments, currentEnvironmentId } = state;
 
     if (!currentRequest.url) return;
 
     set({ isLoading: true });
 
     try {
-      let url = currentRequest.url;
-      const enabledParams = currentRequest.params.filter(p => p.enabled && p.key);
-      
+      // 获取当前 Collection 和 Environment
+      const currentCollection = collections.find(c => c.id === currentCollectionId);
+      const currentEnvironment = environments.find(e => e.id === currentEnvironmentId);
+
+      // 1. 处理变量替换
+      let processedRequest = processRequestVariables(currentRequest, currentCollection, currentEnvironment);
+
+      // 2. 获取有效的 Auth 配置（处理 inherit）
+      const effectiveAuth = getEffectiveAuth(processedRequest, currentCollection);
+
+      // 3. 应用 Auth 到请求
+      processedRequest = applyAuthToRequest(processedRequest, effectiveAuth);
+
+      // 4. 处理 API Key 的 query 参数
+      let url = applyApiKeyToUrl(processedRequest.url, effectiveAuth);
+
+      // 5. 添加 params 到 URL
+      const enabledParams = processedRequest.params.filter(p => p.enabled && p.key);
       if (enabledParams.length > 0) {
         const separator = url.includes('?') ? '&' : '?';
         const queryString = enabledParams
@@ -285,20 +306,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       let requestBody: string | null = null;
       let requestFormData: Array<{ key: string; value: string; file_name?: string; content_type?: string; is_file: boolean }> | null = null;
-      let requestHeaders: Record<string, string> = currentRequest.headers
+      let requestHeaders: Record<string, string> = processedRequest.headers
         .filter(h => h.enabled && h.key)
         .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {} as Record<string, string>);
 
-      if (currentRequest.bodyType === 'raw' && currentRequest.bodyContent) {
-        requestBody = currentRequest.bodyContent;
-      } else if (currentRequest.bodyType === 'x-www-form-urlencoded' && currentRequest.urlEncoded) {
-        const enabledData = currentRequest.urlEncoded.filter(p => p.enabled && p.key);
+      if (processedRequest.bodyType === 'raw' && processedRequest.bodyContent) {
+        requestBody = processedRequest.bodyContent;
+      } else if (processedRequest.bodyType === 'x-www-form-urlencoded' && processedRequest.urlEncoded) {
+        const enabledData = processedRequest.urlEncoded.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
           requestBody = enabledData.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
           requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
         }
-      } else if (currentRequest.bodyType === 'form-data' && currentRequest.formData) {
-        const enabledData = currentRequest.formData.filter(p => p.enabled && p.key);
+      } else if (processedRequest.bodyType === 'form-data' && processedRequest.formData) {
+        const enabledData = processedRequest.formData.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
           requestFormData = enabledData.map(item => {
             const contentType = item.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image/jpeg' : 
@@ -315,14 +336,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
           delete requestHeaders['Content-Type'];
         }
-      } else if (currentRequest.bodyType === 'binary' && currentRequest.binaryFile) {
-        requestBody = currentRequest.binaryFile.data;
-        requestHeaders['Content-Type'] = currentRequest.binaryFile.type;
+      } else if (processedRequest.bodyType === 'binary' && processedRequest.binaryFile) {
+        requestBody = processedRequest.binaryFile.data;
+        requestHeaders['Content-Type'] = processedRequest.binaryFile.type;
       }
 
       const result: any = await invoke('send_http_request', {
         request: {
-          method: currentRequest.method,
+          method: processedRequest.method,
           url: url,
           headers: requestHeaders,
           body: requestBody,

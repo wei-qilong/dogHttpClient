@@ -11,9 +11,9 @@ import {
   CheckOutlined,
   CloseOutlined
 } from '@ant-design/icons';
-import { 
-  Button, 
-  Empty, 
+import {
+  Button,
+  Empty,
   Tag,
   Space,
   Tooltip,
@@ -22,6 +22,7 @@ import {
 } from 'antd';
 import { useAppStore } from '../store';
 import type { Collection, RequestConfig } from '../types';
+import { EnvironmentPanel } from './EnvironmentPanel';
 
 const methodColors: Record<string, string> = {
   GET: '#10B981',
@@ -136,7 +137,7 @@ export function SidebarContent() {
       {/* 面板内容 */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {sidebarActiveTab === 'collections' && <CollectionsPanel showNewCollection={showNewCollection} setShowNewCollection={setShowNewCollection} />}
-        {sidebarActiveTab === 'environments' && <EnvironmentsPanel />}
+        {sidebarActiveTab === 'environments' && <EnvironmentPanel />}
         {sidebarActiveTab === 'history' && <HistoryPanel />}
       </div>
     </div>
