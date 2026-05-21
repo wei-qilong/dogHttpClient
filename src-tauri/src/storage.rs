@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use tauri::api::path::app_data_dir;
 use tauri::AppHandle;
 
 /// 应用数据存储结构
@@ -140,13 +139,22 @@ pub struct StorageManager {
 impl StorageManager {
     /// 创建存储管理器
     pub fn new(app_handle: &AppHandle) -> Result<Self, String> {
-        let data_dir = app_data_dir(&app_handle.config())
-            .ok_or_else(|| "Failed to get app data directory".to_string())?
-            .join("dogHttpClient");
+        // 使用 path_resolver 获取应用数据目录
+        let base_dir = app_handle
+            .path_resolver()
+            .app_data_dir()
+            .ok_or_else(|| "Failed to get app data directory".to_string())?;
+        
+        let data_dir = base_dir.join("dogHttpClient");
+        
+        println!("[Storage] Base app data dir: {:?}", base_dir);
+        println!("[Storage] Full data dir: {:?}", data_dir);
         
         // 确保目录存在
         fs::create_dir_all(&data_dir)
             .map_err(|e| format!("Failed to create data directory: {}", e))?;
+        
+        println!("[Storage] Data directory ready");
         
         Ok(Self { data_dir })
     }
@@ -165,7 +173,10 @@ impl StorageManager {
     pub fn load_data(&self) -> Result<AppData, String> {
         let file_path = self.get_data_file_path();
         
+        println!("[Storage] Loading data from: {:?}", file_path);
+        
         if !file_path.exists() {
+            println!("[Storage] Data file does not exist, returning default");
             // 返回默认数据
             return Ok(AppData {
                 version: "1.0.0".to_string(),
@@ -185,8 +196,13 @@ impl StorageManager {
         let content = fs::read_to_string(&file_path)
             .map_err(|e| format!("Failed to read data file: {}", e))?;
         
+        println!("[Storage] Loaded content length: {} bytes", content.len());
+        
         let data: AppData = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse data file: {}", e))?;
+        
+        println!("[Storage] Successfully loaded {} collections, {} history items", 
+                 data.collections.len(), data.history.len());
         
         Ok(data)
     }
@@ -195,11 +211,17 @@ impl StorageManager {
     pub fn save_data(&self, data: &AppData) -> Result<(), String> {
         let file_path = self.get_data_file_path();
         
+        println!("[Storage] Saving data to: {:?}", file_path);
+        println!("[Storage] Saving {} collections, {} history items", 
+                 data.collections.len(), data.history.len());
+        
         // 先写入临时文件，防止写入过程中出错导致数据损坏
         let temp_path = file_path.with_extension("tmp");
         
         let json = serde_json::to_string_pretty(data)
             .map_err(|e| format!("Failed to serialize data: {}", e))?;
+        
+        println!("[Storage] JSON size: {} bytes", json.len());
         
         fs::write(&temp_path, json)
             .map_err(|e| format!("Failed to write temp file: {}", e))?;
@@ -207,6 +229,8 @@ impl StorageManager {
         // 原子性替换
         fs::rename(&temp_path, &file_path)
             .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+        
+        println!("[Storage] Save completed successfully");
         
         Ok(())
     }
@@ -305,6 +329,7 @@ impl StorageManager {
 /// Tauri 命令：加载数据
 #[tauri::command]
 pub fn cmd_load_data(app_handle: AppHandle) -> Result<AppData, String> {
+    println!("[Storage] cmd_load_data called");
     let storage = StorageManager::new(&app_handle)?;
     storage.load_data()
 }
@@ -312,6 +337,7 @@ pub fn cmd_load_data(app_handle: AppHandle) -> Result<AppData, String> {
 /// Tauri 命令：保存数据
 #[tauri::command]
 pub fn cmd_save_data(app_handle: AppHandle, data: AppData) -> Result<(), String> {
+    println!("[Storage] cmd_save_data called with {} collections", data.collections.len());
     let storage = StorageManager::new(&app_handle)?;
     storage.save_data(&data)
 }
