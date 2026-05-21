@@ -231,46 +231,46 @@ export const useAppStore = create<AppState>((set, get) => ({
       binaryFile: request.binaryFile ?? state.currentRequest.binaryFile,
       preRequestScript: request.preRequestScript ?? state.currentRequest.preRequestScript,
       testsScript: request.testsScript ?? state.currentRequest.testsScript,
+      auth: request.auth ?? state.currentRequest.auth,
+      variables: request.variables ?? state.currentRequest.variables,
     };
     
     const requestId = newRequest.id;
-    const isEditing = requestId === state.currentRequest.id;
-    const isDirty = !skipDirty && isEditing;
+    const isSameRequest = requestId === state.currentRequest.id;
+    // 任何非跳过情况都标记为脏（包括切换请求时的修改）
+    const shouldMarkDirty = !skipDirty;
     
-    // 如果请求变脏，立即同步到 collections 中，触发自动保存
+    // 同步到 collections：如果是同一请求修改，或者是已存在的请求
     let updatedCollections = state.collections;
-    if (isDirty) {
-      // 检查请求是否已存在于某个 collection 中
-      const existsInAny = state.collections.some(c => 
-        c.requests.some(r => r.id === requestId)
-      );
-      
-      if (existsInAny) {
-        // 更新已存在的请求
-        updatedCollections = state.collections.map(col => ({
-          ...col,
-          requests: col.requests.map(req => 
-            req.id === requestId ? { ...newRequest } : req
-          ),
-        }));
-      } else {
-        // 添加到 default collection
-        updatedCollections = state.collections.map(col => {
-          if (col.name === 'default') {
-            return { ...col, requests: [...col.requests, { ...newRequest }] };
-          }
-          return col;
-        });
-      }
+    const existsInAny = state.collections.some(c => 
+      c.requests.some(r => r.id === requestId)
+    );
+    
+    if (existsInAny) {
+      // 更新已存在的请求
+      updatedCollections = state.collections.map(col => ({
+        ...col,
+        requests: col.requests.map(req => 
+          req.id === requestId ? { ...newRequest } : req
+        ),
+      }));
+    } else if (isSameRequest || collectionId) {
+      // 新请求：添加到 default collection
+      updatedCollections = state.collections.map(col => {
+        if (col.name === 'default') {
+          return { ...col, requests: [...col.requests, { ...newRequest }] };
+        }
+        return col;
+      });
     }
     
     return {
       currentRequest: newRequest,
       ...(collectionId !== undefined && { currentCollectionId: collectionId }),
       // 同步更新 collections，触发自动保存
-      ...(isDirty && { collections: updatedCollections }),
-      // 标记为脏
-      ...(isDirty && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
+      collections: updatedCollections,
+      // 标记为脏（用于 saveAllDirty）
+      ...(shouldMarkDirty && { dirtyRequestIds: new Set([...state.dirtyRequestIds, requestId]) }),
     };
   }),
   
@@ -390,9 +390,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         timestamp: Date.now(),
       };
 
-      set((state) => ({
-        history: [historyItem, ...state.history.slice(0, 99)],
-      }));
+      console.log('[History] Adding history item:', historyItem.id, historyItem.request.name);
+
+      set((state) => {
+        const newHistory = [historyItem, ...state.history.slice(0, 99)];
+        console.log('[History] New history length:', newHistory.length);
+        return { history: newHistory };
+      });
 
     } catch (error: any) {
       set({

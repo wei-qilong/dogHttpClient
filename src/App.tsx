@@ -15,6 +15,7 @@ import { Sidebar, SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
+import { EnvironmentVariablesEditor } from './components/EnvironmentVariablesEditor';
 import type { HttpMethod, KeyValuePair } from './types';
 
 const { Header, Sider, Content } = Layout;
@@ -41,7 +42,8 @@ const methodColors: Record<string, string> = {
 function App() {
   const { 
     sidebarVisible, toggleSidebar, currentRequest, setCurrentRequest, sendRequest, 
-    isLoading, collections, currentCollectionId, initFromStorage, dirtyRequestIds 
+    isLoading, collections, currentCollectionId, initFromStorage, dirtyRequestIds,
+    sidebarActiveTab
   } = useAppStore();
 
   // 启动时从本地存储加载数据
@@ -146,6 +148,8 @@ function App() {
       bodyRawType: 'json' as const,
       preRequestScript: '',
       testsScript: '',
+      auth: { type: 'inherit' as const },
+      variables: [],
     };
     useAppStore.getState().setCurrentRequest(newRequest, null);
     useAppStore.getState().markDirty(newRequest.id);
@@ -156,42 +160,10 @@ function App() {
     await sendRequest();
   };
 
-  // 保存请求
+  // 保存请求 - 使用 store 中的 saveAllDirty 统一处理
   const handleSave = () => {
-    const state = useAppStore.getState();
-    const updatedRequest = { ...state.currentRequest };
-    
-    let found = false;
-    const updatedCollections = state.collections.map(col => {
-      const existingIndex = col.requests.findIndex(r => r.id === updatedRequest.id);
-      if (existingIndex >= 0) {
-        found = true;
-        const newRequests = [...col.requests];
-        newRequests[existingIndex] = updatedRequest;
-        return { ...col, requests: newRequests };
-      }
-      return col;
-    });
-    
-    let finalCollections = updatedCollections;
-    let targetColId = state.currentCollectionId;
-    
-    if (!found) {
-      finalCollections = updatedCollections.map(col => {
-        if (col.name === 'default') {
-          return { ...col, requests: [...col.requests, updatedRequest] };
-        }
-        return col;
-      });
-      const defaultCol = finalCollections.find(c => c.name === 'default');
-      targetColId = defaultCol?.id || state.currentCollectionId;
-    }
-    
-    useAppStore.setState(s => ({
-      collections: finalCollections,
-      currentCollectionId: targetColId,
-      dirtyRequestIds: new Set([...s.dirtyRequestIds].filter(id => id !== updatedRequest.id)),
-    }));
+    const { saveAllDirty } = useAppStore.getState();
+    saveAllDirty();
   };
 
   // 处理URL变化 - 始终解析已完成参数到params
@@ -359,29 +331,34 @@ function App() {
 
         {/* Main Content */}
         <Content style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Request Section */}
-          <div style={{ 
-            flex: 1, 
-            overflow: 'auto',
-            background: '#FFFFFF',
-            borderBottom: '1px solid #E2E8F0'
-          }}>
-            {/* Breadcrumb & Actions Bar */}
-            <div style={{ 
-              padding: '12px 16px',
-              borderBottom: '1px solid #E2E8F0',
-              background: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}>
-              {/* Sidebar Toggle */}
-              <Button
-                type="text"
-                icon={sidebarVisible ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-                onClick={toggleSidebar}
-                style={{ color: '#64748B' }}
-              />
+          {sidebarActiveTab === 'environments' ? (
+            /* Environment Variables Editor - 全屏展示 */
+            <EnvironmentVariablesEditor />
+          ) : (
+            <>
+              {/* Request Section */}
+              <div style={{ 
+                flex: 1, 
+                overflow: 'auto',
+                background: '#FFFFFF',
+                borderBottom: '1px solid #E2E8F0'
+              }}>
+                {/* Breadcrumb & Actions Bar */}
+                <div style={{ 
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #E2E8F0',
+                  background: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}>
+                  {/* Sidebar Toggle */}
+                  <Button
+                    type="text"
+                    icon={sidebarVisible ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+                    onClick={toggleSidebar}
+                    style={{ color: '#64748B' }}
+                  />
 
               {/* Collection 面包屑 */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -509,6 +486,8 @@ function App() {
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <ResponsePanel />
           </div>
+            </>
+          )}
         </Content>
       </Layout>
 

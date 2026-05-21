@@ -215,6 +215,7 @@ export async function getDataDirectory(): Promise<string> {
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function debouncedSave(data: AppData, delay = 1000): Promise<void> {
+  console.log('[Storage] debouncedSave called, delay:', delay, 'isTauri:', isTauri);
   return new Promise((resolve, reject) => {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
@@ -222,9 +223,12 @@ export function debouncedSave(data: AppData, delay = 1000): Promise<void> {
     
     saveTimeout = setTimeout(async () => {
       try {
+        console.log('[Storage] debouncedSave executing saveData...');
         await saveData(data);
+        console.log('[Storage] debouncedSave completed successfully');
         resolve();
       } catch (error) {
+        console.error('[Storage] debouncedSave failed:', error);
         reject(error);
       }
     }, delay);
