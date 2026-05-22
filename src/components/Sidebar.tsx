@@ -71,6 +71,10 @@ export function Sidebar() {
           <div
             onClick={() => {
               setSidebarActiveTab(item.key as 'collections' | 'environments' | 'history');
+              // 切换 tab 时清除 collection 编辑状态，避免右侧面板不切换
+              if (item.key !== 'collections') {
+                useAppStore.getState().setCurrentEditingCollectionId(null);
+              }
               if (!useAppStore.getState().sidebarVisible) {
                 toggleSidebar();
               }

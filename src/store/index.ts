@@ -303,7 +303,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   setResponseTab: (tab) => set({ responseTab: tab }),
   setBodyTab: (tab) => set({ bodyTab: tab }),
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
-  setCurrentEnvironmentId: (id) => set({ currentEnvironmentId: id }),
+  setCurrentEnvironmentId: (id) => {
+    set({ currentEnvironmentId: id });
+    // 立即持久化环境切换（不依赖防抖的自动保存）
+    const state = get();
+    const data: AppData = {
+      version: '1.0.0',
+      collections: state.collections,
+      current_request: state.currentRequest,
+      history: state.history,
+      environments: state.environments,
+      currentEnvironmentId: id,
+      settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
+    };
+    debouncedSave(data, 0).catch(err => {
+      console.error('[Storage] Failed to save environment change:', err);
+    });
+  },
   setCurrentEditingCollectionId: (id) => set({ currentEditingCollectionId: id }),
 
   addToHistory: (item) => set((state) => ({
@@ -413,15 +429,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         timestamp: Date.now(),
       };
 
-      console.log('[History] Adding history item:', historyItem.id, historyItem.request.name);
+      logToFile(`[History] Adding history item: ${historyItem.id}, request: ${historyItem.request.name}`);
 
       set((state) => {
         const newHistory = [historyItem, ...state.history.slice(0, 99)];
-        console.log('[History] New history length:', newHistory.length);
+        logToFile(`[History] New history length: ${newHistory.length}`);
         return { history: newHistory };
       });
 
     } catch (error: any) {
+      logToFile(`[History] Request failed: ${error.message || String(error)}`);
       set({
         isLoading: false,
         currentResponse: {

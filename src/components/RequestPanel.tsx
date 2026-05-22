@@ -238,11 +238,11 @@ function ParamsTab() {
           placeholder="Value"
           value={text}
           onChange={(e) => {
-            if (index < editingParamsRef.current.length) {
-              editingParamsRef.current[index] = {
-                ...editingParamsRef.current[index],
-                value: e.target.value
-              };
+            const newParams = [...localParams];
+            if (index < newParams.length) {
+              newParams[index] = { ...newParams[index], value: e.target.value };
+              editingParamsRef.current = newParams;
+              setLocalParams(newParams);
             }
           }}
           onBlur={() => {
@@ -264,11 +264,11 @@ function ParamsTab() {
           placeholder="Description"
           value={text || ''}
           onChange={(e) => {
-            if (index < editingParamsRef.current.length) {
-              editingParamsRef.current[index] = {
-                ...editingParamsRef.current[index],
-                description: e.target.value
-              };
+            const newParams = [...localParams];
+            if (index < newParams.length) {
+              newParams[index] = { ...newParams[index], description: e.target.value };
+              editingParamsRef.current = newParams;
+              setLocalParams(newParams);
             }
           }}
           onBlur={() => {
