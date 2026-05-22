@@ -8,8 +8,10 @@ import {
   DownOutlined,
   SendOutlined,
   SaveOutlined,
-  UploadOutlined
+  UploadOutlined,
+  BugOutlined
 } from '@ant-design/icons';
+import { invoke } from '@tauri-apps/api/tauri';
 import { useAppStore } from './store';
 import { Sidebar, SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
@@ -330,6 +332,22 @@ function App() {
             style={{ color: '#64748B' }}
           >
             Settings
+          </Button>
+          <Button
+            type="text"
+            icon={<BugOutlined />}
+            onClick={async () => {
+              try {
+                await invoke('open_devtools');
+                console.log('[Debug] DevTools opened');
+              } catch (e) {
+                console.log('[Debug] Failed to open DevTools:', e);
+              }
+            }}
+            style={{ color: '#64748B' }}
+            title="Open DevTools (F12)"
+          >
+            Dev
           </Button>
         </Space>
       </Header>

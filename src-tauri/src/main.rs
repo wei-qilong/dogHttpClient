@@ -140,6 +140,12 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
 
 mod storage;
 
+// 打开开发者工具
+#[tauri::command]
+fn open_devtools(window: tauri::Window) {
+    window.open_devtools();
+}
+
 fn main() {
     // 初始化日志
     env_logger::init();
@@ -156,6 +162,7 @@ fn main() {
             storage::cmd_export_data,
             storage::cmd_import_data,
             storage::cmd_get_data_directory,
+            open_devtools,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]
