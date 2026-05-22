@@ -140,10 +140,23 @@ async fn send_http_request(request: HttpRequest) -> Result<HttpResponse, HttpErr
 
 mod storage;
 
-// 打开开发者工具
+// 打开开发者工具 - 使用快捷键方式
 #[tauri::command]
-fn open_devtools(window: tauri::Window) {
-    window.open_devtools();
+async fn open_devtools(app_handle: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        if let Some(window) = app_handle.get_window("main") {
+            window.open_devtools();
+            Ok(())
+        } else {
+            Err("Main window not found".to_string())
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        // release 模式下返回错误信息
+        Err("DevTools only available in debug builds".to_string())
+    }
 }
 
 fn main() {
