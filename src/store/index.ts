@@ -439,17 +439,36 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     } catch (error: any) {
       logToFile(`[History] Request failed: ${error.message || String(error)}`);
-      set({
-        isLoading: false,
-        currentResponse: {
-          status: 0,
-          statusText: 'Error',
-          headers: {},
-          body: error.message || String(error),
-          time: 0,
-          size: 0,
-        }
+      
+      // 即使请求失败也保存历史记录
+      const errorResponse: ResponseData = {
+        status: 0,
+        statusText: 'Error',
+        headers: {},
+        body: error.message || String(error),
+        time: 0,
+        size: 0,
+      };
+      
+      const historyItem: HistoryItem = {
+        id: generateId(),
+        request: { ...currentRequest },
+        response: errorResponse,
+        timestamp: Date.now(),
+      };
+
+      logToFile(`[History] Adding failed request to history: ${historyItem.id}`);
+
+      set((state) => {
+        const newHistory = [historyItem, ...state.history.slice(0, 99)];
+        logToFile(`[History] New history length: ${newHistory.length}`);
+        return { 
+          history: newHistory,
+          isLoading: false,
+          currentResponse: errorResponse
+        };
       });
+      
       console.error('Request failed:', error);
     }
   },

@@ -150,16 +150,12 @@ function ParamsTab() {
   // 稳定的空行 ID，避免每次渲染重新生成导致输入框失焦
   const emptyRowId = useMemo(() => generateId(), []);
 
-  // 显示用的数据：localParams + 一个用于输入的空行
-  // 空行只用于显示，不存储在 localParams 中
-  const displayParams = localParams.length > 0
-    ? [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
-    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
-
-  // 表格数据源：如果 localParams 为空，添加一个空行用于输入
-  const tableDataSource = localParams.length > 0
-    ? localParams
-    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
+  // 表格数据源：localParams + 一个用于输入的空行
+  const tableDataSource = useMemo(() => {
+    return localParams.length > 0
+      ? [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
+      : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
+  }, [localParams, emptyRowId]);
 
   // 只在 blur 或 enter 时同步到 store
   const syncToStore = (newParams: KeyValuePair[]) => {
@@ -181,9 +177,9 @@ function ParamsTab() {
         <Switch
           size="small"
           checked={record.enabled}
-          disabled={index === displayParams.length - 1}
+          disabled={index === tableDataSource.length - 1}
           onChange={(checked) => {
-            if (index === displayParams.length - 1) return;
+            if (index === tableDataSource.length - 1) return;
             // 直接同步到 store
             const newParams = [...editingParamsRef.current];
             newParams[index] = { ...newParams[index], enabled: checked };

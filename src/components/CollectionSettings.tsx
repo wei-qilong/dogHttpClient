@@ -24,6 +24,7 @@ import {
 } from 'antd';
 import { useAppStore } from '../store';
 import type { KeyValuePair, AuthConfig } from '../types';
+import { logToFile } from '../services/storage';
 
 const { TextArea } = Input;
 
@@ -97,6 +98,7 @@ export function CollectionSettings() {
       enabled: true,
     };
 
+    logToFile(`[CollectionSettings] Adding variable: ${newVariable.key}`);
     useAppStore.setState((state) => ({
       collections: state.collections.map((c) =>
         c.id === collection.id
@@ -104,6 +106,7 @@ export function CollectionSettings() {
           : c
       ),
     }));
+    logToFile('[CollectionSettings] Variable added, auto-save should trigger in 1s');
 
     setNewVar({ key: '', value: '' });
     message.success('Variable added');
