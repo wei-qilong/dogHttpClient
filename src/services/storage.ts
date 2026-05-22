@@ -1,8 +1,10 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import type { Collection, RequestConfig, HistoryItem, Environment } from '../types';
 
-// 检测是否在 Tauri 环境中
-const isTauri = typeof window !== 'undefined' && window.__TAURI__;
+// 检测是否在 Tauri 环境中（运行时检测，不是模块加载时）
+function isTauriEnv(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).__TAURI__;
+}
 
 // 浏览器环境 localStorage key
 const LOCAL_STORAGE_KEY = 'dogHttpClient_data';
@@ -90,33 +92,42 @@ function saveToLocalStorage(data: AppData): void {
 
 // 加载数据
 export async function loadData(): Promise<AppData> {
+  const inTauri = isTauriEnv();
+  console.log('[Save] loadData called, isTauriEnv:', inTauri);
+  
   // Tauri 环境
-  if (isTauri) {
+  if (inTauri) {
+    console.log('[Save] Loading from Tauri...');
     try {
       const data = await invoke<AppData>('cmd_load_data');
+      console.log('[Save] Loaded from Tauri:', {
+        collections: data.collections?.length,
+        history: data.history?.length
+      });
       return {
         ...data,
         settings: { ...defaultSettings, ...data.settings },
       };
     } catch (error) {
-      console.error('[Storage] Failed to load from Tauri:', error);
+      console.error('[Save] Failed to load from Tauri:', error);
       return getDefaultData();
     }
   }
 
   // 浏览器环境：使用 localStorage
-  console.log('[Storage] Running in browser, using localStorage');
+  console.log('[Save] Running in browser, using localStorage');
   return loadFromLocalStorage();
 }
 
 // 保存数据
 export async function saveData(data: AppData): Promise<void> {
   console.log('[Save] === saveData called ===');
-  console.log('[Save] isTauri:', isTauri);
-  console.log('[Save] window.__TAURI__:', typeof window !== 'undefined' ? !!window.__TAURI__ : 'N/A');
+  const inTauri = isTauriEnv();
+  console.log('[Save] isTauriEnv():', inTauri);
+  console.log('[Save] window.__TAURI__:', typeof window !== 'undefined' ? !!(window as any).__TAURI__ : 'N/A');
   
   // Tauri 环境
-  if (isTauri) {
+  if (inTauri) {
     console.log('[Save] Using Tauri invoke cmd_save_data...');
     try {
       console.log('[Save] Invoking cmd_save_data with data:', {
@@ -141,7 +152,7 @@ export async function saveData(data: AppData): Promise<void> {
 
 // 创建备份（在浏览器环境下，返回空字符串）
 export async function createBackup(): Promise<string> {
-  if (!isTauri) {
+  if (!isTauriEnv()) {
     console.log('[Storage] Backup not available in browser mode');
     return '';
   }
@@ -156,7 +167,7 @@ export async function createBackup(): Promise<string> {
 
 // 列出备份
 export async function listBackups(): Promise<string[]> {
-  if (!isTauri) {
+  if (!isTauriEnv()) {
     return [];
   }
   try {
@@ -170,7 +181,7 @@ export async function listBackups(): Promise<string[]> {
 
 // 从备份恢复
 export async function restoreBackup(backupName: string): Promise<void> {
-  if (!isTauri) {
+  if (!isTauriEnv()) {
     throw new Error('Backup restore not available in browser mode');
   }
   try {
@@ -183,7 +194,7 @@ export async function restoreBackup(backupName: string): Promise<void> {
 
 // 导出数据
 export async function exportData(path: string): Promise<void> {
-  if (!isTauri) {
+  if (!isTauriEnv()) {
     throw new Error('Export not available in browser mode');
   }
   try {
@@ -196,7 +207,7 @@ export async function exportData(path: string): Promise<void> {
 
 // 导入数据
 export async function importData(path: string): Promise<AppData> {
-  if (!isTauri) {
+  if (!isTauriEnv()) {
     throw new Error('Import not available in browser mode');
   }
   try {
@@ -210,7 +221,7 @@ export async function importData(path: string): Promise<AppData> {
 
 // 获取数据目录
 export async function getDataDirectory(): Promise<string> {
-  if (!isTauri) {
+  if (!isTauriEnv()) {
     return 'Browser localStorage';
   }
   try {
@@ -227,7 +238,8 @@ let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function debouncedSave(data: AppData, delay = 1000): Promise<void> {
   console.log('[Save] === debouncedSave called ===');
-  console.log('[Save] delay:', delay, 'isTauri:', isTauri);
+  const inTauri = isTauriEnv();
+  console.log('[Save] delay:', delay, 'isTauriEnv:', inTauri);
   console.log('[Save] data stats:', {
     collections: data.collections.length,
     history: data.history.length,
