@@ -170,9 +170,9 @@ pub struct Settings {
     pub theme: String,
     pub language: String,
     pub timeout: u32,
-    #[serde(rename = "maxHistory")]
+    #[serde(rename = "maxHistory", alias = "max_history")]
     pub max_history: u32,
-    #[serde(rename = "autoSave")]
+    #[serde(rename = "autoSave", alias = "auto_save")]
     pub auto_save: bool,
 }
 
