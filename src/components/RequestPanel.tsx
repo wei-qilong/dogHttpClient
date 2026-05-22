@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons';
 import { 
   Button, 
@@ -128,45 +128,44 @@ export function RequestPanel() {
   );
 }
 
-// Params 标签页 - 绑定到 store
+// Params 标签页 - 直接绑定到 store，实时同步
 function ParamsTab() {
   const { currentRequest, setCurrentRequest } = useAppStore();
   
-  // 确保 params 数组存在，如果不存在则初始化为空数组
+  // 从 store 直接读取 params
   const params = currentRequest.params || [];
   
-  // 使用本地 state 存储显示数据，避免每次按键都更新 store
-  const [localParams, setLocalParams] = useState<KeyValuePair[]>(params);
+  // 表格数据源：params + 一个用于输入的空行
+  // 使用固定的空行 ID，避免输入时失焦
+  const emptyRowId = 'empty-row';
+  const tableDataSource = params.length > 0
+    ? [...params, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
+    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
 
-  // 使用 ref 跟踪临时编辑状态（避免 React 批处理问题）
-  const editingParamsRef = useRef<KeyValuePair[]>(params);
+  // 更新指定索引的 param
+  const updateParam = (index: number, updates: Partial<KeyValuePair>) => {
+    if (index < params.length) {
+      // 更新现有行
+      const newParams = params.map((p, i) => i === index ? { ...p, ...updates } : p);
+      setCurrentRequest({ params: newParams });
+    } else {
+      // 添加新行（从空行输入）
+      const newParam: KeyValuePair = {
+        id: generateId(),
+        key: updates.key || '',
+        value: updates.value || '',
+        description: updates.description || '',
+        enabled: true,
+      };
+      setCurrentRequest({ params: [...params, newParam] });
+    }
+  };
 
-  // 当 store 中的 params 变化时（如切换请求），同步本地 state
-  useEffect(() => {
-    setLocalParams(params);
-    editingParamsRef.current = params;
-  }, [params]);
-
-  // 稳定的空行 ID，避免每次渲染重新生成导致输入框失焦
-  const emptyRowId = useMemo(() => generateId(), []);
-
-  // 表格数据源：localParams + 一个用于输入的空行
-  const tableDataSource = useMemo(() => {
-    return localParams.length > 0
-      ? [...localParams, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
-      : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
-  }, [localParams, emptyRowId]);
-
-  // 只在 blur 或 enter 时同步到 store
-  const syncToStore = (newParams: KeyValuePair[]) => {
-    // 过滤掉空行（key 和 value 都为空）
-    const validParams = newParams
-      .filter(p => p.key !== '' || p.value !== '')
-      // 如果 param 的 ID 与空行 ID 相同，分配新 ID 避免冲突
-      .map(p => p.id === emptyRowId ? { ...p, id: generateId() } : p);
-    editingParamsRef.current = validParams;
-    setLocalParams(validParams);
-    setCurrentRequest({ params: validParams });
+  // 删除 param
+  const deleteParam = (index: number) => {
+    if (params.length <= 1) return;
+    const newParams = params.filter((_, i) => i !== index);
+    setCurrentRequest({ params: newParams });
   };
 
   const columns = [
@@ -177,13 +176,10 @@ function ParamsTab() {
         <Switch
           size="small"
           checked={record.enabled}
-          disabled={index === tableDataSource.length - 1}
+          disabled={record.id === emptyRowId}
           onChange={(checked) => {
-            if (index === tableDataSource.length - 1) return;
-            // 直接同步到 store
-            const newParams = [...editingParamsRef.current];
-            newParams[index] = { ...newParams[index], enabled: checked };
-            syncToStore(newParams);
+            if (record.id === emptyRowId) return;
+            updateParam(index, { enabled: checked });
           }}
         />
       ),
@@ -196,30 +192,7 @@ function ParamsTab() {
         <Input
           placeholder="Key"
           value={text}
-          onChange={(e) => {
-            // 更新 ref
-            if (index < editingParamsRef.current.length) {
-              editingParamsRef.current[index] = {
-                ...editingParamsRef.current[index],
-                key: e.target.value
-              };
-            }
-            // 同时更新 localParams 以确保输入框显示正确的值
-            const newParams = [...localParams];
-            if (index < newParams.length) {
-              newParams[index] = { ...newParams[index], key: e.target.value };
-            } else {
-              // 添加新行
-              newParams.push({ id: emptyRowId, key: e.target.value, value: '', description: '', enabled: true });
-            }
-            setLocalParams(newParams);
-          }}
-          onBlur={() => {
-            syncToStore(editingParamsRef.current);
-          }}
-          onPressEnter={() => {
-            syncToStore(editingParamsRef.current);
-          }}
+          onChange={(e) => updateParam(index, { key: e.target.value })}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
         />
@@ -233,20 +206,7 @@ function ParamsTab() {
         <Input
           placeholder="Value"
           value={text}
-          onChange={(e) => {
-            const newParams = [...localParams];
-            if (index < newParams.length) {
-              newParams[index] = { ...newParams[index], value: e.target.value };
-              editingParamsRef.current = newParams;
-              setLocalParams(newParams);
-            }
-          }}
-          onBlur={() => {
-            syncToStore(editingParamsRef.current);
-          }}
-          onPressEnter={() => {
-            syncToStore(editingParamsRef.current);
-          }}
+          onChange={(e) => updateParam(index, { value: e.target.value })}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
         />
@@ -259,20 +219,7 @@ function ParamsTab() {
         <Input
           placeholder="Description"
           value={text || ''}
-          onChange={(e) => {
-            const newParams = [...localParams];
-            if (index < newParams.length) {
-              newParams[index] = { ...newParams[index], description: e.target.value };
-              editingParamsRef.current = newParams;
-              setLocalParams(newParams);
-            }
-          }}
-          onBlur={() => {
-            syncToStore(editingParamsRef.current);
-          }}
-          onPressEnter={() => {
-            syncToStore(editingParamsRef.current);
-          }}
+          onChange={(e) => updateParam(index, { description: e.target.value })}
           bordered={false}
           style={{ background: 'transparent', color: '#94A3B8', fontSize: 12 }}
         />
@@ -281,18 +228,15 @@ function ParamsTab() {
     {
       title: '',
       width: 32,
-      render: (_text: string, _record: KeyValuePair, index: number) => (
+      render: (_text: string, record: KeyValuePair, index: number) => (
         <Tooltip title="Delete">
           <Button
             type="text"
             size="small"
             icon={<DeleteOutlined />}
             style={{ color: '#94A3B8', fontSize: 12 }}
-            onClick={() => {
-              if (editingParamsRef.current.length <= 1) return;
-              const newParams = editingParamsRef.current.filter((_, i) => i !== index);
-              syncToStore(newParams);
-            }}
+            onClick={() => deleteParam(index)}
+            disabled={record.id === emptyRowId}
           />
         </Tooltip>
       ),
