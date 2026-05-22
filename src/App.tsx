@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/tauri';
 import { useAppStore } from './store';
+import { logToFile } from './services/storage';
 import { Sidebar, SidebarContent } from './components/Sidebar';
 import { RequestPanel } from './components/RequestPanel';
 import { ResponsePanel } from './components/ResponsePanel';
@@ -164,14 +165,14 @@ function App() {
   };
 
   // 保存请求 - 使用 store 中的 saveAllDirty 统一处理
-  const handleSave = () => {
-    console.log('[Save] === Save button clicked ===');
+  const handleSave = async () => {
+    await logToFile('=== Save button clicked ===');
     const { saveAllDirty, dirtyRequestIds, collections } = useAppStore.getState();
-    console.log('[Save] Current collections count:', collections.length);
-    console.log('[Save] Dirty request IDs:', Array.from(dirtyRequestIds));
-    console.log('[Save] Calling saveAllDirty...');
+    await logToFile(`Current collections count: ${collections.length}`);
+    await logToFile(`Dirty request IDs: ${Array.from(dirtyRequestIds).join(', ')}`);
+    await logToFile('Calling saveAllDirty...');
     saveAllDirty();
-    console.log('[Save] saveAllDirty returned');
+    await logToFile('saveAllDirty returned');
   };
 
   // 处理URL变化 - 始终解析已完成参数到params

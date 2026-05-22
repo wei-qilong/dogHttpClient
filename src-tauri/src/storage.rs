@@ -25,7 +25,7 @@ fn init_log_file(app_handle: &AppHandle) {
     }
 }
 
-fn log_to_file(msg: &str) {
+pub fn log_to_file(msg: &str) {
     unsafe {
         if let Some(ref mut file) = LOG_FILE {
             let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");

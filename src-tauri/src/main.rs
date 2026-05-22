@@ -159,6 +159,12 @@ async fn open_devtools(app_handle: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+// 前端日志记录到文件
+#[tauri::command]
+fn log_from_frontend(message: String) {
+    storage::log_to_file(&format!("[Frontend] {}", message));
+}
+
 fn main() {
     // 初始化日志
     env_logger::init();
@@ -176,6 +182,7 @@ fn main() {
             storage::cmd_import_data,
             storage::cmd_get_data_directory,
             open_devtools,
+            log_from_frontend,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

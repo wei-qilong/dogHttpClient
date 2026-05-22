@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import type { RequestConfig, ResponseData, Collection, Environment, HistoryItem } from '../types';
-import { loadData, debouncedSave, type AppData } from '../services/storage';
+import { loadData, debouncedSave, logToFile, type AppData } from '../services/storage';
 import { processRequestVariables } from '../utils/variables';
 import { getEffectiveAuth, applyAuthToRequest, applyApiKeyToUrl } from '../utils/auth';
 
@@ -169,37 +169,37 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
   
   // 保存所有脏请求：将当前请求写回 collection（如果不在任何 collection 中则添加到 default），然后持久化
-  saveAllDirty: () => {
-    console.log('[Save] === saveAllDirty called ===');
+  saveAllDirty: async () => {
+    await logToFile('=== saveAllDirty called ===');
     const state = get();
-    console.log('[Save] dirtyRequestIds size:', state.dirtyRequestIds.size);
-    console.log('[Save] currentRequest id:', state.currentRequest.id);
-    
+    await logToFile(`dirtyRequestIds size: ${state.dirtyRequestIds.size}`);
+    await logToFile(`currentRequest id: ${state.currentRequest.id}`);
+
     if (state.dirtyRequestIds.size === 0) {
-      console.log('[Save] No dirty requests, returning');
+      await logToFile('No dirty requests, returning');
       return;
     }
-    
-    console.log('[Save] Processing collections...');
+
+    await logToFile('Processing collections...');
     let updatedCollections = state.collections.map(col => ({
       ...col,
       requests: col.requests.map(req => {
         if (state.dirtyRequestIds.has(req.id) && req.id === state.currentRequest.id) {
-          console.log('[Save] Updating request in collection:', req.id);
+          logToFile(`Updating request in collection: ${req.id}`);
           return { ...state.currentRequest };
         }
         return req;
       }),
     }));
-    
+
     // 如果当前脏请求不在任何 collection 中，添加到 default
     if (state.dirtyRequestIds.has(state.currentRequest.id)) {
-      const existsInAny = updatedCollections.some(c => 
+      const existsInAny = updatedCollections.some(c =>
         c.requests.some(r => r.id === state.currentRequest.id)
       );
-      console.log('[Save] Current request exists in collections:', existsInAny);
+      await logToFile(`Current request exists in collections: ${existsInAny}`);
       if (!existsInAny) {
-        console.log('[Save] Adding current request to default collection');
+        await logToFile('Adding current request to default collection');
         updatedCollections = updatedCollections.map(col => {
           if (col.name === 'default') {
             return { ...col, requests: [...col.requests, { ...state.currentRequest }] };
@@ -208,16 +208,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
       }
     }
-    
+
     // 清除所有脏标记
-    console.log('[Save] Clearing dirty marks and updating state');
+    await logToFile('Clearing dirty marks and updating state');
     set({
       collections: updatedCollections,
       dirtyRequestIds: new Set<string>(),
     });
-    
+
     // 立即持久化
-    console.log('[Save] Preparing data for debouncedSave...');
+    await logToFile('Preparing data for debouncedSave...');
     const data: AppData = {
       version: '1.0.0',
       collections: updatedCollections,
@@ -227,13 +227,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentEnvironmentId: state.currentEnvironmentId,
       settings: { theme: 'light', language: 'zh-CN', timeout: 30000, max_history: 100, auto_save: true },
     };
-    console.log('[Save] Calling debouncedSave with delay 0...');
-    debouncedSave(data, 0).then(() => {
-      console.log('[Save] debouncedSave completed successfully');
-    }).catch(err => {
-      console.error('[Save] debouncedSave failed:', err);
+    await logToFile('Calling debouncedSave with delay 0...');
+    debouncedSave(data, 0).then(async () => {
+      await logToFile('debouncedSave completed successfully');
+    }).catch(async err => {
+      await logToFile(`debouncedSave failed: ${err}`);
     });
-    console.log('[Save] saveAllDirty finished');
+    await logToFile('saveAllDirty finished');
   },
   
   // skipDirty 参数：URL/Params 双向绑定时传 true，避免循环标记脏

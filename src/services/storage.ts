@@ -6,6 +6,18 @@ function isTauriEnv(): boolean {
   return typeof window !== 'undefined' && !!(window as any).__TAURI__;
 }
 
+// 前端日志发送到 Rust 后端记录到文件
+export async function logToFile(message: string) {
+  if (isTauriEnv()) {
+    try {
+      await invoke('log_from_frontend', { message });
+    } catch (e) {
+      // 如果调用失败，回退到 console
+      console.log(`[Frontend] ${message}`);
+    }
+  }
+}
+
 // 浏览器环境 localStorage key
 const LOCAL_STORAGE_KEY = 'dogHttpClient_data';
 
@@ -121,33 +133,29 @@ export async function loadData(): Promise<AppData> {
 
 // 保存数据
 export async function saveData(data: AppData): Promise<void> {
-  console.log('[Save] === saveData called ===');
+  await logToFile('=== saveData called ===');
   const inTauri = isTauriEnv();
-  console.log('[Save] isTauriEnv():', inTauri);
-  console.log('[Save] window.__TAURI__:', typeof window !== 'undefined' ? !!(window as any).__TAURI__ : 'N/A');
+  await logToFile(`isTauriEnv(): ${inTauri}`);
+  await logToFile(`window.__TAURI__: ${typeof window !== 'undefined' ? !!(window as any).__TAURI__ : 'N/A'}`);
   
   // Tauri 环境
   if (inTauri) {
-    console.log('[Save] Using Tauri invoke cmd_save_data...');
+    await logToFile('Using Tauri invoke cmd_save_data...');
     try {
-      console.log('[Save] Invoking cmd_save_data with data:', {
-        collections: data.collections.length,
-        history: data.history.length,
-        environments: data.environments.length
-      });
+      await logToFile(`Invoking cmd_save_data with collections: ${data.collections.length}, history: ${data.history.length}`);
       await invoke('cmd_save_data', { data });
-      console.log('[Save] cmd_save_data completed successfully');
+      await logToFile('cmd_save_data completed successfully');
       return;
     } catch (error) {
-      console.error('[Save] Failed to save via Tauri:', error);
+      await logToFile(`Failed to save via Tauri: ${error}`);
       throw error;
     }
   }
 
   // 浏览器环境：使用 localStorage
-  console.log('[Save] Not in Tauri, using localStorage');
+  await logToFile('Not in Tauri, using localStorage');
   saveToLocalStorage(data);
-  console.log('[Save] localStorage save completed');
+  await logToFile('localStorage save completed');
 }
 
 // 创建备份（在浏览器环境下，返回空字符串）
@@ -237,30 +245,25 @@ export async function getDataDirectory(): Promise<string> {
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function debouncedSave(data: AppData, delay = 1000): Promise<void> {
-  console.log('[Save] === debouncedSave called ===');
+  logToFile('=== debouncedSave called ===');
   const inTauri = isTauriEnv();
-  console.log('[Save] delay:', delay, 'isTauriEnv:', inTauri);
-  console.log('[Save] data stats:', {
-    collections: data.collections.length,
-    history: data.history.length,
-    environments: data.environments.length,
-    hasCurrentRequest: !!data.current_request
-  });
+  logToFile(`delay: ${delay}, isTauriEnv: ${inTauri}`);
+  logToFile(`data stats: collections=${data.collections.length}, history=${data.history.length}`);
   return new Promise((resolve, reject) => {
     if (saveTimeout) {
-      console.log('[Save] Clearing previous timeout');
+      logToFile('Clearing previous timeout');
       clearTimeout(saveTimeout);
     }
     
-    console.log('[Save] Setting timeout for', delay, 'ms');
+    logToFile(`Setting timeout for ${delay}ms`);
     saveTimeout = setTimeout(async () => {
       try {
-        console.log('[Save] Timeout fired, executing saveData...');
+        logToFile('Timeout fired, executing saveData...');
         await saveData(data);
-        console.log('[Save] saveData completed, resolving promise');
+        logToFile('saveData completed, resolving promise');
         resolve();
       } catch (error) {
-        console.error('[Save] saveData failed:', error);
+        logToFile(`saveData failed: ${error}`);
         reject(error);
       }
     }, delay);
