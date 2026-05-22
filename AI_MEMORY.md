@@ -127,10 +127,90 @@
 
 ---
 
+## 排查方法论（重要！从存储功能修复中总结的教训）
+
+> 以下方法从"修复存储功能花了 15+ 次提交"的惨痛教训中提炼，**必须严格遵守**。
+
+### 原则一：先建立可观测性，再修 Bug
+
+**错误做法**: 加 console.log → 发现看不到 → 让用户按 F12 → 用户说 exe 没有 F12 → 继续纠结
+**正确做法**: 在桌面应用中，第一时间把日志写到文件里（Rust 的 log_to_file），确保能直接看到
+
+**具体规则**:
+- Tauri 桌面应用的 release 构建没有 DevTools，`console.log` 对开发者不可见
+- 前端日志必须通过 `invoke('log_from_frontend', { message })` 写入 Rust 的日志文件
+- **任何调试的第一步都是确认"日志能看到"**，然后再分析日志内容
+
+### 原则二：从已有证据反推，不要盲目猜测
+
+**错误做法**: 用户给日志说"没有保存日志"，我继续加前端日志（因为看不到）
+**正确做法**: Rust 日志只有 Loading 没有 Saving → 说明前端没调用到 Rust → 问题在前端到 Rust 的链路上
+
+**具体规则**:
+- 收到用户反馈后，先分析已有信息能得出什么结论
+- 如果 Rust 端没有收到调用，问题一定在前端（环境检测、序列化、调用方式）
+- 如果 Rust 端收到了但报错，问题在序列化/反序列化/字段匹配
+
+### 原则三：一次性系统性排查整条链路
+
+**Tauri 前后端集成的完整链路**:
+```
+前端状态 → JSON 序列化 → Tauri invoke → Rust 接收 → serde 反序列化 → 业务逻辑 → 文件写入
+```
+
+**排查清单**:
+1. 前端是否正确触发了保存？（日志能看到吗？）
+2. 前端到 Rust 的调用是否成功？（isTauri 环境检测是否正确？）
+3. JSON 序列化后的字段名是否匹配？（camelCase vs snake_case）
+4. Rust 反序列化是否成功？（serde 的 rename/alias 是否配置？）
+5. Rust 业务逻辑是否正确执行？
+6. 文件是否成功写入？
+
+### 原则四：Tauri 桌面开发的特殊注意事项
+
+1. **`window.__TAURI__` 注入时序**: 在模块加载时可能还不存在，必须用**运行时函数**检测：
+   ```typescript
+   // ❌ 错误：模块加载时执行，可能为 false
+   const isTauri = window.__TAURI__;
+   
+   // ✅ 正确：运行时检测
+   function isTauriEnv() { return !!window.__TAURI__; }
+   ```
+
+2. **前后端字段命名必须一致**: Rust 用 `#[serde(rename = "camelCase")]`，前端也必须发 camelCase。如果不确定，加 `alias` 兼容两种格式：
+   ```rust
+   #[serde(rename = "maxHistory", alias = "max_history")]
+   ```
+
+3. **DevTools 只在 debug 模式可用**: release 构建无法打开 DevTools，必须通过日志文件调试
+
+4. **Tauri 1.x 的 feature flag**: `open_devtools` 等方法需要在 `Cargo.toml` 中启用对应 feature（如 `devtools`）
+
+### 原则五：用户说"看不到"时，立刻换方式
+
+- 用户说"exe 没有 F12" → 不要再建议按 F12
+- 用户说"日志没有变化" → 不要再加同类日志
+- **立刻换一种让用户能看到信息的方式**（写文件、弹窗、UI 提示等）
+
+---
+
 ## Git 提交历史摘要
 
+### 存储功能修复历程（教训总结）
+| 提交 | 说明 | 反思 |
+|------|------|------|
+| `88c2f1b` | **最终修复**: Settings serde alias 兼容 snake_case | 这才是真正的 bug，但前面花了 14 轮才定位到 |
+| `9f14d94` | 前端日志写文件（log_from_frontend 命令） | 如果一开始就做这个，能省 10 轮 |
+| `5130ce0` | DevTools 命令修复 | release 不支持，方向错误 |
+| `e92c677` | 添加 DevTools 按钮 | 方向错误 |
+| `232251e` | isTauri 改为运行时检测 | 真正的 bug #1 |
+| `515da5e` | 添加详细保存流程日志 | 看不到，白加 |
+| `ef0a870` | 保存/加载 current_request | 有用但不是根因 |
+
+### 其他功能提交
 | 提交 | 说明 |
 |------|------|
+| `ab544be` | 添加 Collection 设置入口 |
 | `874f97f` | 修复 ParamsTab 创建多行（ref + localParams 双轨） |
 | `adf84bb` | 用 record.id 判断空行（仍有问题） |
 | `26c796c` | 只在 key 列 onChange 时添加新行（仍有问题） |
