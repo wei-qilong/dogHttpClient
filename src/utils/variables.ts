@@ -78,35 +78,39 @@ export function processRequestVariables(
   // 替换 URL
   const processedUrl = replaceVariables(request.url, variableMap);
 
-  // 替换 Headers
+  // 替换 Headers (key, value, description)
   const processedHeaders = request.headers.map(h => ({
     ...h,
     key: replaceVariables(h.key, variableMap),
     value: replaceVariables(h.value, variableMap),
+    description: replaceVariables(h.description || '', variableMap),
   }));
 
-  // 替换 Params
+  // 替换 Params (key, value, description)
   const processedParams = request.params.map(p => ({
     ...p,
     key: replaceVariables(p.key, variableMap),
     value: replaceVariables(p.value, variableMap),
+    description: replaceVariables(p.description || '', variableMap),
   }));
 
   // 替换 Body
   const processedBodyContent = replaceVariables(request.bodyContent, variableMap);
 
-  // 替换 formData
+  // 替换 formData (key, value, description)
   const processedFormData = request.formData?.map(f => ({
     ...f,
     key: replaceVariables(f.key, variableMap),
     value: replaceVariables(f.value, variableMap),
+    description: replaceVariables(f.description || '', variableMap),
   }));
 
-  // 替换 urlEncoded
+  // 替换 urlEncoded (key, value, description)
   const processedUrlEncoded = request.urlEncoded?.map(u => ({
     ...u,
     key: replaceVariables(u.key, variableMap),
     value: replaceVariables(u.value, variableMap),
+    description: replaceVariables(u.description || '', variableMap),
   }));
 
   return {

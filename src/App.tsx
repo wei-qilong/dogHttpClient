@@ -1,17 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layout, Space, Button, Dropdown, Input, Tooltip } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PlusOutlined,
-  SettingOutlined,
   DownOutlined,
   SendOutlined,
   SaveOutlined,
-  UploadOutlined,
-  BugOutlined
+  UploadOutlined
 } from '@ant-design/icons';
-import { invoke } from '@tauri-apps/api/tauri';
 import { useAppStore } from './store';
 import { logToFile } from './services/storage';
 import { Sidebar, SidebarContent } from './components/Sidebar';
@@ -20,18 +17,12 @@ import { ResponsePanel } from './components/ResponsePanel';
 import { ImportModal } from './components/ImportModal';
 import { EnvironmentVariablesEditor } from './components/EnvironmentVariablesEditor';
 import { CollectionSettings } from './components/CollectionSettings';
-import type { HttpMethod, KeyValuePair } from './types';
+import type { HttpMethod } from './types';
+import { parseUrlToParams, buildFullUrl } from './utils/urlHelper';
 
 const { Header, Sider, Content } = Layout;
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
-
-// 将params数组转为URL query字符串
-const paramsToQueryString = (params: KeyValuePair[]): string => {
-  const enabled = params.filter(p => p.enabled && p.key);
-  if (enabled.length === 0) return '';
-  return '?' + enabled.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
-};
 
 const methodColors: Record<string, string> = {
   GET: '#10B981',
@@ -175,108 +166,43 @@ function App() {
     await logToFile('saveAllDirty returned');
   };
 
-  // 处理URL变化 - 始终解析已完成参数到params
-  const handleUrlChange = (newUrl: string) => {
-    // 检查这个 URL 变更是否是由 params 触发的
-    // 方法：比较"当前 params 会生成的 URL"与"新 URL"，如果一致则跳过 params 解析
-    const currentState = useAppStore.getState();
-    const currentBaseUrl = (currentState.currentRequest.url || '').split('?')[0] || '';
-    const currentParams = currentState.currentRequest.params || [];
-    const paramsGeneratedUrl = currentBaseUrl + paramsToQueryString(currentParams);
+  // URL 输入框用本地状态管理，避免受控组件导致输入被覆盖
+  const [urlInputValue, setUrlInputValue] = useState(currentRequest.url);
+  const isUrlFocusedRef = useRef(false);
 
-    if (newUrl === paramsGeneratedUrl) {
-      // URL 与 params 生成的完全一致 → 这是 params 触发的变更，跳过解析
-      setCurrentRequest({ url: newUrl }, undefined, true);
-      return;
+  // 当 currentRequest.url 或 params 变化时（非用户输入导致），同步到输入框
+  const prevUrlRef = useRef(currentRequest.url);
+  const prevParamsJsonRef = useRef(JSON.stringify(currentRequest.params));
+  useEffect(() => {
+    const urlChanged = prevUrlRef.current !== currentRequest.url;
+    const paramsChanged = prevParamsJsonRef.current !== JSON.stringify(currentRequest.params);
+    prevUrlRef.current = currentRequest.url;
+    prevParamsJsonRef.current = JSON.stringify(currentRequest.params);
+
+    // 只在非用户输入时更新输入框（用户输入时 isUrlFocusedRef 为 true）
+    if (!isUrlFocusedRef.current && (urlChanged || paramsChanged)) {
+      const newDisplayUrl = buildFullUrl(currentRequest.url, currentRequest.params);
+      setUrlInputValue(newDisplayUrl);
     }
-    
-    const questionMarkIndex = newUrl.indexOf('?');
-    
-    if (questionMarkIndex === -1) {
-      setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
-      return;
-    }
-    
-    const queryString = newUrl.substring(questionMarkIndex + 1);
-    
-    if (!queryString) {
-      setCurrentRequest({ url: newUrl, params: [] }, undefined, true);
-      return;
-    }
-    
-    // 获取当前params用于复用ID
-    const existingParams = useAppStore.getState().currentRequest.params || [];
-    
-    // 始终解析所有参数（包括不完整的）
-    const pairs = queryString.split('&');
-    const params: KeyValuePair[] = [];
-    const usedIds = new Set<string>();
-    
-    for (const pair of pairs) {
-      if (pair === '') continue;
-      const equalIndex = pair.indexOf('=');
-      let key: string;
-      let value: string;
-      
-      if (equalIndex === -1) {
-        key = decodeURIComponent(pair);
-        value = '';
-      } else if (equalIndex === pair.length - 1) {
-        key = decodeURIComponent(pair.substring(0, equalIndex));
-        value = '';
-      } else {
-        key = decodeURIComponent(pair.substring(0, equalIndex));
-        value = decodeURIComponent(pair.substring(equalIndex + 1));
-      }
-      
-      // 只按key匹配复用ID（value可能正在输入中会变化）
-      const existingParam = existingParams.find(p => p.key === key && !usedIds.has(p.id));
-      const reusedId = existingParam?.id;
-      if (reusedId) usedIds.add(reusedId);
-      params.push({
-        id: reusedId || Math.random().toString(36).substring(2, 10),
-        key,
-        value,
-        description: existingParam?.description || '',
-        enabled: existingParam?.enabled ?? true
-      });
-    }
-    
-    // 地址栏始终保留完整URL（含?和参数），params更新
-    setCurrentRequest({ url: newUrl, params }, undefined, true);
+  }, [currentRequest.url, currentRequest.params]);
+
+  // 处理URL输入 - 用户在地址栏输入时
+  const handleUrlChange = (newUrl: string) => {
+    setUrlInputValue(newUrl); // 先更新本地状态，保证输入流畅
+    const { baseUrl, params } = parseUrlToParams(newUrl);
+    setCurrentRequest({ url: baseUrl, params }, undefined, true);
   };
 
-  // 监听 params 变化，异步同步更新 URL（useEffect 方式，避免每次按键都更新）
-  const prevParamsRef = { current: currentRequest.params };
-  useEffect(() => {
-    const prevParams = prevParamsRef.current;
-    const currParams = currentRequest.params;
-
-    // 比较 params 是否真正变化（引用变化或内容变化）
-    if (prevParams !== currParams) {
-      prevParamsRef.current = currParams;
-
-      const enabledParams = currParams.filter(p => p.enabled && p.key);
-
-      // 从当前 URL 中提取基础 URL（去掉 query 部分）
-      const baseUrl = currentRequest.url.split('?')[0] || '';
-
-      if (enabledParams.length > 0) {
-        const queryString = enabledParams
-          .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-          .join('&');
-        const newUrl = `${baseUrl}?${queryString}`;
-        if (newUrl !== currentRequest.url) {
-          setCurrentRequest({ url: newUrl }, undefined, true);
-        }
-      } else {
-        // 没有参数时，URL 不应该有 ?
-        if (currentRequest.url.includes('?')) {
-          setCurrentRequest({ url: baseUrl }, undefined, true);
-        }
-      }
-    }
-  }, [currentRequest.params, currentRequest.url, setCurrentRequest]);
+  // 处理URL获取/失去焦点
+  const handleUrlFocus = () => {
+    isUrlFocusedRef.current = true;
+    // 聚焦时，显示完整URL（baseUrl + params）
+    const fullUrl = buildFullUrl(currentRequest.url, currentRequest.params);
+    setUrlInputValue(fullUrl);
+  };
+  const handleUrlBlur = () => {
+    isUrlFocusedRef.current = false;
+  };
 
   const methodItems = methods.map(m => ({
     key: m,
@@ -327,53 +253,34 @@ function App() {
           >
             New
           </Button>
-          <Button 
-            type="text" 
-            icon={<SettingOutlined />}
-            style={{ color: '#64748B' }}
-          >
-            Settings
-          </Button>
-          <Button
-            type="text"
-            icon={<BugOutlined />}
-            onClick={async () => {
-              try {
-                await invoke('open_devtools');
-                console.log('[Debug] DevTools opened');
-              } catch (e) {
-                console.log('[Debug] Failed to open DevTools:', e);
-              }
-            }}
-            style={{ color: '#64748B' }}
-            title="Open DevTools (F12)"
-          >
-            Dev
-          </Button>
         </Space>
       </Header>
 
       <Layout style={{ background: '#F8FAFC' }}>
-        {/* Sidebar */}
-        {sidebarVisible && (
-          <>
-            {/* 图标导航栏 */}
-            <div style={{ width: 60, background: '#FFFFFF', borderRight: '1px solid #E2E8F0' }}>
+        {/* Sidebar - 图标导航栏 + 内容面板 */}
+        <Sider
+          width={sidebarVisible ? 280 : 60}
+          collapsed={!sidebarVisible}
+          collapsedWidth={60}
+          style={{
+            background: '#FFFFFF',
+            borderRight: '1px solid #E2E8F0',
+            overflow: 'auto'
+          }}
+        >
+          <div style={{ display: 'flex', height: '100%' }}>
+            {/* 图标导航栏 - 始终显示 */}
+            <div style={{ width: 60, flexShrink: 0 }}>
               <Sidebar />
             </div>
-            {/* 内容面板 */}
-            <Sider
-              width={220}
-              style={{
-                background: '#FFFFFF',
-                borderRight: '1px solid #E2E8F0',
-                overflow: 'auto'
-              }}
-            >
-              <SidebarContent />
-            </Sider>
-          </>
-        )}
+            {/* 内容面板 - 可折叠 */}
+            {sidebarVisible && (
+              <div style={{ width: 220, overflow: 'auto' }}>
+                <SidebarContent />
+              </div>
+            )}
+          </div>
+        </Sider>
 
         {/* Main Content */}
         <Content style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -492,8 +399,10 @@ function App() {
               </Dropdown>
 
               <Input
-                value={currentRequest.url}
+                value={urlInputValue}
                 onChange={(e) => handleUrlChange(e.target.value)}
+                onFocus={handleUrlFocus}
+                onBlur={handleUrlBlur}
                 placeholder="Enter request URL"
                 style={{
                   flex: 1,
@@ -526,18 +435,13 @@ function App() {
             </div>
           </div>
 
-          {/* Request Panel - 可滚动 */}
+          {/* Request Panel + Response 放在同一个滚动容器中，一起滚动 */}
           <div style={{ 
-            flex: '1 1 0', 
+            flex: '1 1 0',
             overflow: 'auto',
-            background: '#FFFFFF',
             minHeight: 0
           }}>
             <RequestPanel />
-          </div>
-
-          {/* Response Section - 可滚动 */}
-          <div style={{ flex: '1 1 0', overflow: 'auto', minHeight: 0 }}>
             <ResponsePanel />
           </div>
         </>

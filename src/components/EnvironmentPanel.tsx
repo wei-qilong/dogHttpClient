@@ -83,7 +83,6 @@ export function EnvironmentPanel() {
   // 激活环境
   const handleActivateEnv = (id: string) => {
     setCurrentEnvironmentId(id);
-    message.success('Environment activated');
   };
 
   return (

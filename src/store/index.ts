@@ -334,13 +334,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({ isLoading: true });
 
+    // 在 try 外部定义 processedRequest，确保 catch 中可以访问
+    let processedRequest: RequestConfig = currentRequest;
+
     try {
       // 获取当前 Collection 和 Environment
       const currentCollection = collections.find(c => c.id === currentCollectionId);
       const currentEnvironment = environments.find(e => e.id === currentEnvironmentId);
 
       // 1. 处理变量替换
-      let processedRequest = processRequestVariables(currentRequest, currentCollection, currentEnvironment);
+      processedRequest = processRequestVariables(currentRequest, currentCollection, currentEnvironment);
+      logToFile(`[Variables] Original URL: ${currentRequest.url}`);
+      logToFile(`[Variables] Processed URL: ${processedRequest.url}`);
+      logToFile(`[Variables] Environment: ${currentEnvironment?.name || 'none'}`);
+      logToFile(`[Variables] Variable count: ${currentEnvironment?.variables?.length || 0}`);
 
       // 2. 获取有效的 Auth 配置（处理 inherit）
       const effectiveAuth = getEffectiveAuth(processedRequest, currentCollection);
@@ -424,7 +431,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const historyItem: HistoryItem = {
         id: generateId(),
-        request: { ...currentRequest },
+        request: { ...processedRequest },
+        originalRequest: { ...currentRequest },
         response: responseData,
         timestamp: Date.now(),
       };
@@ -440,7 +448,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (error: any) {
       logToFile(`[History] Request failed: ${error.message || String(error)}`);
       
-      // 即使请求失败也保存历史记录
+      // 即使请求失败也保存历史记录（使用变量替换后的请求）
       const errorResponse: ResponseData = {
         status: 0,
         statusText: 'Error',
@@ -452,7 +460,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       const historyItem: HistoryItem = {
         id: generateId(),
-        request: { ...currentRequest },
+        request: { ...processedRequest },
+        originalRequest: { ...currentRequest },
         response: errorResponse,
         timestamp: Date.now(),
       };

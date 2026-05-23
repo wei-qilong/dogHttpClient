@@ -8,12 +8,14 @@ function isTauriEnv(): boolean {
 
 // 前端日志发送到 Rust 后端记录到文件
 export async function logToFile(message: string) {
+  // 始终在 console 输出（便于浏览器调试）
+  console.log(`[Frontend] ${message}`);
+  
   if (isTauriEnv()) {
     try {
       await invoke('log_from_frontend', { message });
     } catch (e) {
-      // 如果调用失败，回退到 console
-      console.log(`[Frontend] ${message}`);
+      // 如果调用失败，已经在 console 输出过了
     }
   }
 }

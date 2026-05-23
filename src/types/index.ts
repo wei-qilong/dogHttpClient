@@ -94,6 +94,7 @@ export interface Environment {
 export interface HistoryItem {
   id: string;
   timestamp: number;
-  request: RequestConfig;
+  request: RequestConfig; // 变量替换后的请求（用于展示真实地址）
+  originalRequest?: RequestConfig; // 原始请求（带变量，用于回显）
   response?: ResponseData;
 }

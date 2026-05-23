@@ -465,7 +465,7 @@ function HistoryPanel() {
                 borderRadius: 4,
                 transition: 'background 0.15s'
               }}
-              onClick={() => useAppStore.getState().setCurrentRequest(item.request)}
+              onClick={() => useAppStore.getState().setCurrentRequest(item.originalRequest || item.request)}
               onMouseEnter={e => (e.currentTarget.style.background = '#F1F5F9')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
@@ -484,16 +484,19 @@ function HistoryPanel() {
                   overflow: 'hidden', 
                   textOverflow: 'ellipsis', 
                   whiteSpace: 'nowrap',
-                  color: '#475569'
+                  // 失败请求（无响应或状态码 >= 300）显示红色 URL
+                  color: !item.response || item.response.status >= 300 ? '#EF4444' : '#475569'
                 }}>
                   {item.request.url || item.request.name}
                 </div>
                 <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
                   {formatTime(item.timestamp)}
-                  {item.response && (
+                  {item.response ? (
                     <span style={{ marginLeft: 8, color: item.response.status < 300 ? '#10B981' : '#F59E0B' }}>
                       {item.response.status}
                     </span>
+                  ) : (
+                    <span style={{ marginLeft: 8, color: '#EF4444' }}>Failed</span>
                   )}
                 </div>
               </div>

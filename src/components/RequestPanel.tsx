@@ -14,6 +14,7 @@ import {
 import type { TabsProps } from 'antd';
 import { useAppStore } from '../store';
 import type { KeyValuePair } from '../types';
+import { processRequestVariables } from '../utils/variables';
 
 const { TextArea } = Input;
 
@@ -128,59 +129,46 @@ export function RequestPanel() {
   );
 }
 
-// Params 标签页 - 直接绑定到 store，实时同步
+// Params 标签页 - 直接绑定 store，params 变化自动更新地址栏
 function ParamsTab() {
   const { currentRequest, setCurrentRequest } = useAppStore();
-  
-  // 从 store 直接读取 params
   const params = currentRequest.params || [];
-  
-  // 表格数据源：params + 一个用于输入的空行
-  // 使用固定的空行 ID，避免输入时失焦
-  const emptyRowId = 'empty-row';
-  const tableDataSource = params.length > 0
-    ? [...params, { id: emptyRowId, key: '', value: '', description: '', enabled: true }]
-    : [{ id: emptyRowId, key: '', value: '', description: '', enabled: true }];
 
-  // 更新指定索引的 param
-  const updateParam = (index: number, updates: Partial<KeyValuePair>) => {
-    if (index < params.length) {
-      // 更新现有行
-      const newParams = params.map((p, i) => i === index ? { ...p, ...updates } : p);
-      setCurrentRequest({ params: newParams });
-    } else {
-      // 添加新行（从空行输入）
-      const newParam: KeyValuePair = {
-        id: generateId(),
-        key: updates.key || '',
-        value: updates.value || '',
-        description: updates.description || '',
-        enabled: true,
-      };
-      setCurrentRequest({ params: [...params, newParam] });
-    }
+  // 确保至少有一个空行（用真正的 id）
+  const hasEmptyRow = params.some(p => p.key === '' && p.value === '');
+  const displayParams = hasEmptyRow ? params : [...params, { id: generateId(), key: '', value: '', description: '', enabled: true }];
+
+  // 更新 params - 直接同步到 store
+  const updateParams = (index: number, field: 'key' | 'value' | 'description', value: string) => {
+    const newParams = displayParams.map((p, i) =>
+      i === index ? { ...p, [field]: value } : p
+    );
+    setCurrentRequest({ params: newParams }, undefined, true);
+  };
+
+  // 切换启用状态
+  const toggleEnabled = (index: number) => {
+    const newParams = displayParams.map((p, i) =>
+      i === index ? { ...p, enabled: !p.enabled } : p
+    );
+    setCurrentRequest({ params: newParams }, undefined, true);
   };
 
   // 删除 param
   const deleteParam = (index: number) => {
-    if (params.length <= 1) return;
-    const newParams = params.filter((_, i) => i !== index);
-    setCurrentRequest({ params: newParams });
+    const newParams = displayParams.filter((_, i) => i !== index);
+    setCurrentRequest({ params: newParams }, undefined, true);
   };
 
   const columns = [
     {
       title: '',
       width: 32,
-      render: (_text: string, record: KeyValuePair, index: number) => (
+      render: (_text: string, _record: KeyValuePair, index: number) => (
         <Switch
           size="small"
-          checked={record.enabled}
-          disabled={record.id === emptyRowId}
-          onChange={(checked) => {
-            if (record.id === emptyRowId) return;
-            updateParam(index, { enabled: checked });
-          }}
+          checked={displayParams[index].enabled}
+          onChange={() => toggleEnabled(index)}
         />
       ),
     },
@@ -192,7 +180,7 @@ function ParamsTab() {
         <Input
           placeholder="Key"
           value={text}
-          onChange={(e) => updateParam(index, { key: e.target.value })}
+          onChange={(e) => updateParams(index, 'key', e.target.value)}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
         />
@@ -206,7 +194,7 @@ function ParamsTab() {
         <Input
           placeholder="Value"
           value={text}
-          onChange={(e) => updateParam(index, { value: e.target.value })}
+          onChange={(e) => updateParams(index, 'value', e.target.value)}
           bordered={false}
           style={{ background: 'transparent', fontSize: 12 }}
         />
@@ -219,7 +207,7 @@ function ParamsTab() {
         <Input
           placeholder="Description"
           value={text || ''}
-          onChange={(e) => updateParam(index, { description: e.target.value })}
+          onChange={(e) => updateParams(index, 'description', e.target.value)}
           bordered={false}
           style={{ background: 'transparent', color: '#94A3B8', fontSize: 12 }}
         />
@@ -228,25 +216,28 @@ function ParamsTab() {
     {
       title: '',
       width: 32,
-      render: (_text: string, record: KeyValuePair, index: number) => (
-        <Tooltip title="Delete">
-          <Button
-            type="text"
-            size="small"
-            icon={<DeleteOutlined />}
-            style={{ color: '#94A3B8', fontSize: 12 }}
-            onClick={() => deleteParam(index)}
-            disabled={record.id === emptyRowId}
-          />
-        </Tooltip>
-      ),
+      render: (_text: string, _record: KeyValuePair, index: number) => {
+        const isLastEmpty = index === displayParams.length - 1 && displayParams[index].key === '' && displayParams[index].value === '';
+        return (
+          <Tooltip title="Delete">
+            <Button
+              type="text"
+              size="small"
+              icon={<DeleteOutlined />}
+              style={{ color: '#94A3B8', fontSize: 12 }}
+              onClick={() => deleteParam(index)}
+              disabled={isLastEmpty}
+            />
+          </Tooltip>
+        );
+      },
     },
   ];
 
   return (
     <div style={{ padding: '12px' }}>
       <Table
-        dataSource={tableDataSource}
+        dataSource={displayParams}
         columns={columns}
         pagination={false}
         size="small"
@@ -1091,7 +1082,7 @@ function SettingsTab() {
 
 // Code 标签页 - 生成 curl 命令
 function CodeTab() {
-  const { currentRequest } = useAppStore();
+  const { currentRequest, collections, currentCollectionId, environments, currentEnvironmentId } = useAppStore();
   const [copied, setCopied] = useState(false);
 
   // 生成 curl 命令
@@ -1099,31 +1090,46 @@ function CodeTab() {
     const { method, url, headers, bodyContent, bodyType, bodyRawType, params, formData, urlEncoded, binaryFile } = currentRequest;
     if (!url) return 'curl';
 
+    // 获取当前 Collection 和 Environment 进行变量替换
+    const currentCollection = collections.find(c => c.id === currentCollectionId);
+    const currentEnvironment = environments.find(e => e.id === currentEnvironmentId);
+    
+    // 处理变量替换
+    const processedRequest = processRequestVariables(currentRequest, currentCollection, currentEnvironment);
+    
+    // 使用处理后的 URL 和参数
+    const processedUrl = processedRequest.url;
+    const processedParams = processedRequest.params;
+    const processedHeaders = processedRequest.headers;
+    const processedBodyContent = processedRequest.bodyContent;
+    const processedFormData = processedRequest.formData;
+    const processedUrlEncoded = processedRequest.urlEncoded;
+
     // 构建带 params 的 URL
-    let finalUrl = url;
-    const enabledParams = params.filter(p => p.enabled && p.key);
+    let finalUrl = processedUrl;
+    const enabledParams = processedParams.filter(p => p.enabled && p.key);
     if (enabledParams.length > 0) {
-      const separator = url.includes('?') ? '&' : '?';
+      const separator = processedUrl.includes('?') ? '&' : '?';
       const queryString = enabledParams
         .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
         .join('&');
-      finalUrl = url + separator + queryString;
+      finalUrl = processedUrl + separator + queryString;
     }
 
     let parts = [`curl -X ${method}`];
 
     // 检查用户是否已设置 Content-Type header
-    const hasContentTypeHeader = headers.some(h => h.enabled && h.key.toLowerCase() === 'content-type');
+    const hasContentTypeHeader = processedHeaders.some(h => h.enabled && h.key.toLowerCase() === 'content-type');
 
-    // 添加 headers
-    const enabledHeaders = headers.filter(h => h.enabled && h.key);
+    // 添加 headers (使用处理后的 headers)
+    const enabledHeaders = processedHeaders.filter(h => h.enabled && h.key);
     for (const h of enabledHeaders) {
       parts.push(`  -H '${h.key}: ${h.value}'`);
     }
 
-    // 添加 body
+    // 添加 body (使用处理后的 body 数据)
     if (['POST', 'PUT', 'PATCH'].includes(method) && bodyType !== 'none') {
-      if (bodyType === 'raw' && bodyContent) {
+      if (bodyType === 'raw' && processedBodyContent) {
         // 根据 bodyRawType 设置 Content-Type
         const contentTypeMap: Record<string, string> = {
           'json': 'application/json',
@@ -1136,10 +1142,10 @@ function CodeTab() {
           parts.push(`  -H 'Content-Type: ${contentType}'`);
         }
         // 转义单引号
-        const escapedBody = bodyContent.replace(/'/g, "'\\''").replace(/\n/g, '\\n');
+        const escapedBody = processedBodyContent.replace(/'/g, "'\\''").replace(/\n/g, '\\n');
         parts.push(`  -d '${escapedBody}'`);
-      } else if (bodyType === 'x-www-form-urlencoded' && urlEncoded) {
-        const enabledData = urlEncoded.filter(p => p.enabled && p.key);
+      } else if (bodyType === 'x-www-form-urlencoded' && processedUrlEncoded) {
+        const enabledData = processedUrlEncoded.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
           const dataStr = enabledData.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
           if (!hasContentTypeHeader) {
@@ -1147,8 +1153,8 @@ function CodeTab() {
           }
           parts.push(`  -d '${dataStr}'`);
         }
-      } else if (bodyType === 'form-data' && formData) {
-        const enabledData = formData.filter(p => p.enabled && p.key);
+      } else if (bodyType === 'form-data' && processedFormData) {
+        const enabledData = processedFormData.filter(p => p.enabled && p.key);
         if (enabledData.length > 0) {
           for (const item of enabledData) {
             if (item.type === 'file' && item.fileName) {

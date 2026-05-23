@@ -17,7 +17,7 @@ export function ResponsePanel() {
   if (!currentResponse) {
     return (
       <div style={{ 
-        height: '100%', 
+        minHeight: 200,
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
