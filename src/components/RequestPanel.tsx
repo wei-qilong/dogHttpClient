@@ -1087,7 +1087,7 @@ function CodeTab() {
 
   // 生成 curl 命令
   const generateCurl = () => {
-    const { method, url, headers, bodyContent, bodyType, bodyRawType, params, formData, urlEncoded, binaryFile } = currentRequest;
+    const { method, url, bodyType, bodyRawType, binaryFile } = currentRequest;
     if (!url) return 'curl';
 
     // 获取当前 Collection 和 Environment 进行变量替换
